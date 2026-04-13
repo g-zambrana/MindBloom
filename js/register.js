@@ -24,5 +24,5 @@ form.addEventListener('submit', async (event) => {
   }
 
   message.textContent = 'Account created!';
-  window.location.href = '/pages/login.html';
+  window.location.href = '/login';
 });

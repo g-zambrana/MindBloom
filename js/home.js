@@ -6,14 +6,14 @@ async function checkUser() {
   const { data, error } = await supabase.auth.getSession();
 
   if (error || !data.session) {
-    window.location.href = '/pages/login.html';
+    window.location.href = '/login';
     return;
   }
 }
 
 logoutBtn.addEventListener('click', async () => {
   await supabase.auth.signOut();
-  window.location.href = '/pages/login.html';
+  window.location.href = '/login';
 });
 
 checkUser();

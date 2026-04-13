@@ -24,5 +24,5 @@ form.addEventListener('submit', async (event) => {
   }
 
   message.textContent = 'Login successful!';
-  window.location.href = '/pages/home.html';
+  window.location.href = '/home';
 });
