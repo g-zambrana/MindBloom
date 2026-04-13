@@ -3,21 +3,21 @@
   "redirects": [
     {
       "source": "/",
-      "destination": "/login",
+      "destination": "/pages/login.html",
       "permanent": false
     }
   ],
   "rewrites": [
     {
-      "source": "/login.html",
+      "source": "/login",
       "destination": "/pages/login.html"
     },
     {
-      "source": "/register.html",
+      "source": "/register",
       "destination": "/pages/register.html"
     },
     {
-      "source": "/home.html",
+      "source": "/home",
       "destination": "/pages/home.html"
     }
   ]
