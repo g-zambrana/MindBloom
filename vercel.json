@@ -33,6 +33,10 @@
       "source": "/self-reflection",
       "destination": "/pages/self-reflection"
     },
+     {
+      "source": "/previousentries",
+      "destination": "/pages/previousentries"
+    },
     {
       "source": "/update-password",
       "destination": "/pages/update-password"
