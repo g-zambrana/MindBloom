@@ -691,6 +691,6 @@ try {
 if (els.logoutBtn) {
   els.logoutBtn.addEventListener('click', async () => {
     await supabase.auth.signOut();
-    window.location.href = '/staff-login';
+    window.location.href = '/staff';
   });
 }
