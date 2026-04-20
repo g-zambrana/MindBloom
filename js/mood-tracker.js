@@ -1,5 +1,4 @@
-
-import { supabase } from './supabase.js';
+import { supabase } from "./supabase.js";
 
 // -----------------------------
 // Sidebar / auth bootstrap
@@ -19,11 +18,15 @@ async function initSidebar() {
   const emailEl = document.getElementById("sb-useremail");
 
   try {
-    const { data: profile } = await supabase
-      .from("profile")
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
       .select("full_name, email")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
+
+    if (profileError) {
+      throw profileError;
+    }
 
     const fullName = profile?.full_name || user.email?.split("@")[0] || "User";
     const email = profile?.email || user.email || "";
@@ -56,7 +59,7 @@ const MOOD_LABELS = {
   7: "Good",
   8: "Great",
   9: "Really Great",
-  10: "Excellent"
+  10: "Excellent",
 };
 
 const MOOD_EMOJIS = {
@@ -69,7 +72,7 @@ const MOOD_EMOJIS = {
   7: "😄",
   8: "😁",
   9: "🤩",
-  10: "🌟"
+  10: "🌟",
 };
 
 function sliderToMoodLabel(value) {
@@ -94,7 +97,7 @@ function escHtml(str) {
 }
 
 function formatEntryDate(entry) {
-  const raw = entry.created_at || entry.entry_date;
+  const raw = entry.logged_at || entry.created_at || entry.entry_date;
   const date = new Date(raw);
 
   if (Number.isNaN(date.getTime())) {
@@ -104,7 +107,7 @@ function formatEntryDate(entry) {
   return date.toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
-    day: "numeric"
+    day: "numeric",
   });
 }
 
@@ -127,10 +130,26 @@ const submitBtn = document.getElementById("submitMood");
 const statusMsg = document.getElementById("statusMessage");
 const historyList = document.getElementById("historyList");
 const alreadyLogged = document.getElementById("alreadyLogged");
+const logoutBtn = document.getElementById("logoutBtn");
 
 // Safety checks
 if (!slider || !moodDisplay || !submitBtn || !statusMsg || !historyList) {
   throw new Error("Missing required mood tracker HTML elements.");
+}
+
+// -----------------------------
+// Logout
+// -----------------------------
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      window.location.href = "/login";
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
+  });
 }
 
 // -----------------------------
@@ -174,7 +193,10 @@ async function logMoodEntry({
   userId,
   moodRating,
   moodLabel,
-  note
+  note,
+  energyLevel,
+  anxietyLevel,
+  sleepHours,
 }) {
   const today = new Date().toISOString().split("T")[0];
 
@@ -186,8 +208,12 @@ async function logMoodEntry({
         mood_rating: moodRating,
         mood_label: moodLabel,
         note: note || null,
-        entry_date: today
-      }
+        entry_date: today,
+        energy_level: energyLevel ?? null,
+        anxiety_level: anxietyLevel ?? null,
+        sleep_hours: sleepHours ?? null,
+        logged_at: new Date().toISOString(),
+      },
     ])
     .select()
     .single();
@@ -199,36 +225,12 @@ async function logMoodEntry({
   return data;
 }
 
-async function updateProfileMoodExtras({
-  userId,
-  energyLevel,
-  anxietyLevel,
-  sleepHours
-}) {
-  // Based on the schema you pasted, these extra values are in "profile"
-  const updateData = {
-    updated_at: new Date().toISOString(),
-    logged_at: new Date().toISOString()
-  };
-
-  if (energyLevel !== undefined) updateData.energy_level = energyLevel;
-  if (anxietyLevel !== undefined) updateData.anxiety_level = anxietyLevel;
-  if (sleepHours !== undefined) updateData.sleep_hours = sleepHours;
-
-  const { error } = await supabase
-    .from("profile")
-    .update(updateData)
-    .eq("id", userId);
-
-  if (error) {
-    throw error;
-  }
-}
-
 async function getMoodHistory(userId, limit = 14) {
   const { data, error } = await supabase
     .from("mood_entries")
-    .select("id, mood_rating, mood_label, note, entry_date, created_at")
+    .select(
+      "id, mood_rating, mood_label, note, entry_date, created_at, energy_level, anxiety_level, sleep_hours, logged_at"
+    )
     .eq("user_id", userId)
     .order("entry_date", { ascending: false })
     .order("created_at", { ascending: false })
@@ -264,9 +266,9 @@ if (alreadyDone) {
 submitBtn.addEventListener("click", async () => {
   const moodRating = Number(slider.value);
   const moodLabel = sliderToMoodLabel(slider.value);
-  const energyLevel = energySlider?.value ? Number(energySlider.value) : undefined;
-  const anxietyLevel = anxietySlider?.value ? Number(anxietySlider.value) : undefined;
-  const sleepHours = sleepInput?.value ? Number(sleepInput.value) : undefined;
+  const energyLevel = energySlider?.value ? Number(energySlider.value) : null;
+  const anxietyLevel = anxietySlider?.value ? Number(anxietySlider.value) : null;
+  const sleepHours = sleepInput?.value ? Number(sleepInput.value) : null;
   const note = notesInput?.value.trim() || "";
 
   submitBtn.disabled = true;
@@ -284,26 +286,15 @@ submitBtn.addEventListener("click", async () => {
       return;
     }
 
-    // Save the actual mood entry
     await logMoodEntry({
       userId: user.id,
       moodRating,
       moodLabel,
-      note
+      note,
+      energyLevel,
+      anxietyLevel,
+      sleepHours,
     });
-
-    // Save extra values to profile, because that is where your pasted schema puts them
-    try {
-      await updateProfileMoodExtras({
-        userId: user.id,
-        energyLevel,
-        anxietyLevel,
-        sleepHours
-      });
-    } catch (profileErr) {
-      console.error("Profile extras update failed:", profileErr);
-      // Do not fail the whole mood log if the mood entry itself succeeded
-    }
 
     statusMsg.textContent = "✓ Mood logged! Great job checking in.";
     statusMsg.style.color = "#3D6B35";
@@ -334,23 +325,34 @@ async function loadHistory() {
       return;
     }
 
-    historyList.innerHTML = logs.map((log) => {
-      const emoji = MOOD_EMOJIS[log.mood_rating] || "🙂";
-      const label = log.mood_label || MOOD_LABELS[log.mood_rating] || "Mood logged";
-      const dateText = formatEntryDate(log);
-      const safeNote = log.note ? escHtml(log.note) : "";
+    historyList.innerHTML = logs
+      .map((log) => {
+        const emoji = MOOD_EMOJIS[log.mood_rating] || "🙂";
+        const label = log.mood_label || MOOD_LABELS[log.mood_rating] || "Mood logged";
+        const dateText = formatEntryDate(log);
+        const safeNote = log.note ? escHtml(log.note) : "";
 
-      return `
-        <div class="history-entry">
-          <span class="h-emoji">${emoji}</span>
-          <div class="h-info">
-            <strong>${label}</strong>
-            <span class="h-date">${dateText}</span>
-            ${safeNote ? `<span class="h-note">${safeNote}</span>` : ""}
+        const extras = [
+          log.energy_level != null ? `Energy: ${log.energy_level}/10` : null,
+          log.anxiety_level != null ? `Anxiety: ${log.anxiety_level}/10` : null,
+          log.sleep_hours != null ? `Sleep: ${log.sleep_hours} hrs` : null,
+        ]
+          .filter(Boolean)
+          .join(" • ");
+
+        return `
+          <div class="history-entry">
+            <span class="h-emoji">${emoji}</span>
+            <div class="h-info">
+              <strong>${label}</strong>
+              <span class="h-date">${dateText}</span>
+              ${extras ? `<span class="h-date">${escHtml(extras)}</span>` : ""}
+              ${safeNote ? `<span class="h-note">${safeNote}</span>` : ""}
+            </div>
           </div>
-        </div>
-      `;
-    }).join("");
+        `;
+      })
+      .join("");
   } catch (err) {
     console.error("Mood history error:", err);
     historyList.innerHTML = `<p style="color:#c0392b;font-size:13px;">${escHtml(err.message)}</p>`;
