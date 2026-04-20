@@ -1,42 +1,31 @@
-// js/staffLogin.js
-import { supabase } from './supabase.js';
+// /js/staff/staffLogin.js
+import { supabase } from '../supabase.js';
 
 const form = document.getElementById('staffLoginForm');
 const emailInput = document.getElementById('staffEmail');
 const passwordInput = document.getElementById('staffPassword');
 const message = document.getElementById('message');
 
-const STAFF_ROLES = ['staff', 'admin', 'therapist'];
+const ALLOWED_ROLES = ['staff', 'admin', 'therapist'];
+const STAFF_DASHBOARD_PATH = '/pages/staff/staff-dashboard';
 
-function setMessage(text, type = 'info') {
-  if (!message) return;
-
+function setMessage(text, color = '') {
   message.textContent = text;
-
-  if (type === 'error') {
-    message.style.color = '#c0392b';
-  } else if (type === 'success') {
-    message.style.color = '#3D6B35';
-  } else {
-    message.style.color = '';
-  }
+  message.style.color = color;
 }
 
-async function getProfileRole(userId) {
+async function getUserRole(userId) {
   const { data, error } = await supabase
     .from('profile')
     .select('role')
     .eq('id', userId)
     .single();
 
-  if (error) {
-    throw error;
-  }
-
+  if (error) throw error;
   return data?.role ?? null;
 }
 
-// Redirect already-logged-in users if they are valid staff
+// Redirect already-logged-in users only if they are valid staff
 (async () => {
   try {
     const { data, error } = await supabase.auth.getSession();
@@ -54,90 +43,61 @@ async function getProfileRole(userId) {
       return;
     }
 
-    const role = await getProfileRole(session.user.id);
+    const role = await getUserRole(session.user.id);
 
-    if (STAFF_ROLES.includes(role)) {
-      window.location.replace('/staff-dashboard');
+    if (ALLOWED_ROLES.includes(role)) {
+      window.location.replace(STAFF_DASHBOARD_PATH);
       return;
     }
 
-    // Logged in, but not staff
     await supabase.auth.signOut();
-    setMessage('This portal is for authorized staff accounts only.', 'error');
+    setMessage('This portal is only for authorized staff accounts.', '#c0392b');
     document.body.style.visibility = 'visible';
   } catch (err) {
-    console.error('Startup staff auth check failed:', err);
+    console.error('Startup auth check failed:', err);
     document.body.style.visibility = 'visible';
   }
 })();
 
-if (form) {
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
 
-    const submitButton = form.querySelector('button[type="submit"]');
-    const email = emailInput?.value.trim().toLowerCase() || '';
-    const password = passwordInput?.value || '';
+  const email = emailInput.value.trim().toLowerCase();
+  const password = passwordInput.value;
 
-    if (!email) {
-      setMessage('Please enter your work email.', 'error');
+  setMessage('Logging in...');
+  message.style.color = '';
+
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) {
+      setMessage(error.message, '#c0392b');
       return;
     }
 
-    if (!password) {
-      setMessage('Please enter your password.', 'error');
+    const user = data?.user;
+
+    if (!user?.id) {
+      setMessage('Unable to verify account.', '#c0392b');
+      await supabase.auth.signOut();
       return;
     }
 
-    try {
-      if (submitButton) submitButton.disabled = true;
+    const role = await getUserRole(user.id);
 
-      setMessage('Signing in...');
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        setMessage(error.message, 'error');
-        return;
-      }
-
-      const user = data?.user;
-
-      if (!user?.id) {
-        setMessage('Unable to verify this account.', 'error');
-        await supabase.auth.signOut();
-        return;
-      }
-
-      let role = null;
-
-      try {
-        role = await getProfileRole(user.id);
-      } catch (profileError) {
-        console.error('Profile lookup failed:', profileError);
-        setMessage('Could not verify staff permissions.', 'error');
-        await supabase.auth.signOut();
-        return;
-      }
-
-      if (!STAFF_ROLES.includes(role)) {
-        setMessage('Access denied. This account is not authorized for the staff portal.', 'error');
-        await supabase.auth.signOut();
-        return;
-      }
-
-      setMessage('Login successful. Redirecting...', 'success');
-      window.location.href = '/staff-dashboard';
-    } catch (err) {
-      console.error('Staff login failed:', err);
-      setMessage('Something went wrong. Please try again.', 'error');
-    } finally {
-      if (submitButton) submitButton.disabled = false;
+    if (!ALLOWED_ROLES.includes(role)) {
+      await supabase.auth.signOut();
+      setMessage('Access denied. Only staff, admin, or therapist accounts can sign in here.', '#c0392b');
+      return;
     }
-  });
-} else {
-  console.error('staffLoginForm was not found in the HTML.');
-}
+
+    window.location.href = STAFF_DASHBOARD_PATH;
+  } catch (err) {
+    console.error('Staff login failed:', err);
+    setMessage('Something went wrong. Please try again.', '#c0392b');
+  }
+});
