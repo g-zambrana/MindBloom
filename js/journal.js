@@ -42,6 +42,13 @@ const avatarInitials = document.getElementById('avatar-initials');
 const sbUsername = document.getElementById('sb-username');
 const sbUseremail = document.getElementById('sb-useremail');
 
+const entryModal = document.getElementById('entryModal');
+const entryModalBackdrop = document.getElementById('entryModalBackdrop');
+const entryModalClose = document.getElementById('entryModalClose');
+const entryModalTitle = document.getElementById('entryModalTitle');
+const entryModalMeta = document.getElementById('entryModalMeta');
+const entryModalBody = document.getElementById('entryModalBody');
+
 // --------------------------------------------------
 // Mood display maps
 // --------------------------------------------------
@@ -113,6 +120,11 @@ function getInitials(name, email) {
   return '?';
 }
 
+function getMoodDisplay(mood) {
+  if (!mood || !MOOD_LABELS[mood]) return 'No mood selected';
+  return `${MOOD_EMOJIS[mood]} ${MOOD_LABELS[mood]}`;
+}
+
 // --------------------------------------------------
 // Sidebar user info
 // --------------------------------------------------
@@ -176,6 +188,32 @@ async function loadPrompt() {
 }
 
 // --------------------------------------------------
+// Modal
+// --------------------------------------------------
+function openEntryModal(entry) {
+  entryModalTitle.textContent = entry.title || 'Untitled entry';
+  entryModalMeta.textContent = `${formatEntryDate(entry)} · ${entry.word_count ?? 0} words · ${getMoodDisplay(entry.mood)}`;
+  entryModalBody.textContent = entry.body || '';
+
+  entryModal.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeEntryModal() {
+  entryModal.hidden = true;
+  document.body.style.overflow = '';
+}
+
+entryModalClose.addEventListener('click', closeEntryModal);
+entryModalBackdrop.addEventListener('click', closeEntryModal);
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !entryModal.hidden) {
+    closeEntryModal();
+  }
+});
+
+// --------------------------------------------------
 // Save entry
 // --------------------------------------------------
 submitBtn.addEventListener('click', async () => {
@@ -223,7 +261,7 @@ async function loadEntries(filter = '') {
     const entries = await getEntries(user.id, 100);
 
     const filtered = filter
-      ? entries.filter(entry => {
+      ? entries.filter((entry) => {
           const title = (entry.title || '').toLowerCase();
           const body = (entry.body || '').toLowerCase();
           const mood = (entry.mood || '').toLowerCase();
@@ -241,7 +279,7 @@ async function loadEntries(filter = '') {
       return;
     }
 
-    entriesList.innerHTML = filtered.map(entry => {
+    entriesList.innerHTML = filtered.map((entry) => {
       const preview =
         entry.body && entry.body.length > 200
           ? `${escHtml(entry.body.slice(0, 200))}…`
@@ -268,7 +306,17 @@ async function loadEntries(filter = '') {
       `;
     }).join('');
 
-    entriesList.querySelectorAll('.btn-delete').forEach(btn => {
+    entriesList.querySelectorAll('.entry-card').forEach((card) => {
+      card.addEventListener('click', () => {
+        const entryId = card.dataset.id;
+        const entry = filtered.find((item) => String(item.id) === String(entryId));
+        if (entry) {
+          openEntryModal(entry);
+        }
+      });
+    });
+
+    entriesList.querySelectorAll('.btn-delete').forEach((btn) => {
       btn.addEventListener('click', async (event) => {
         event.stopPropagation();
 
@@ -280,6 +328,11 @@ async function loadEntries(filter = '') {
 
         try {
           await deleteEntry(entryId);
+
+          if (!entryModal.hidden) {
+            closeEntryModal();
+          }
+
           await loadEntries(searchInput.value.trim().toLowerCase());
         } catch (err) {
           console.error('Delete failed:', err);
