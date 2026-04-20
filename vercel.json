@@ -25,6 +25,7 @@
     { "source": "/therapist",       "destination": "/pages/therapist"       },
     { "source": "/resources",       "destination": "/pages/resources"       },
     { "source": "/profile",         "destination": "/pages/profile"         },
-    { "source": "/staff/login",      "destination": "/pages/staff/login"    }
+    { "source": "/staff/login",      "destination": "/pages/staff/login"    },
+    { "source": "/staff/dashboard",      "destination": "/pages/staff/staff-dashboard"    }
   ]
 }

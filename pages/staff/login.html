@@ -1,11 +1,73 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Staff - MindBloom</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="icon" type="image/x-icon" href="/images/herb.svg" />
+  <title>Staff Login — MindBloom</title>
 </head>
 <body>
-    <h1>TEST h1</h1>
+  <div class="auth-shell staff-shell">
+    <div class="auth-panel staff-panel">
+      <div class="brand-top">
+        <div class="brand-mark staff-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="18" height="18">
+            <path d="M12 2v20M5 7c2-1 4.5-.5 7 2 2.5-2.5 5-3 7-2M5 17c2 1 4.5.5 7-2 2.5 2.5 5 3 7 2"/>
+          </svg>
+        </div>
+        <div class="brand-copy">
+          <h1 id="logoh1">MindBloom</h1>
+          <p class="brand-sub">Secure staff access for care management and support tools.</p>
+        </div>
+      </div>
+
+      <div class="form-box">
+        <div class="auth-header">
+          <span class="staff-badge">Staff Portal</span>
+          <h2>Sign in to continue</h2>
+          <p class="auth-subtext">Access staff dashboards, appointments, and client support records.</p>
+        </div>
+
+        <form id="staffLoginForm">
+          <div class="field-group">
+            <label for="staffEmail">Work Email</label>
+            <input
+              id="staffEmail"
+              type="email"
+              placeholder="name@mindbloomstaff.com"
+              autocomplete="email"
+              required
+            />
+          </div>
+
+          <div class="field-group">
+            <label for="staffPassword">Password</label>
+            <input
+              id="staffPassword"
+              type="password"
+              placeholder="••••••••••"
+              autocomplete="current-password"
+              required
+            />
+          </div>
+
+          <button class="submitButton" type="submit">Staff Sign In</button>
+
+          <p id="forgotP">
+            <a href="/reset-password">Forgot Password?</a>
+          </p>
+
+          <p id="message"></p>
+        </form>
+
+        <div class="staff-footer-note">
+          <p>Authorized personnel only. Activity may be monitored for security and compliance.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/staff/staffLogin.js"></script>
 </body>
 </html>
