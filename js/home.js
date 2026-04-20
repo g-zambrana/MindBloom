@@ -82,7 +82,7 @@ async function ensureAndLoadProfile(user) {
 
   try {
     const { data: existingProfile, error: selectError } = await supabase
-      .from("profile")
+      .from("profiles")
       .select("*")
       .eq("id", user.id)
       .maybeSingle();
@@ -103,7 +103,7 @@ async function ensureAndLoadProfile(user) {
     };
 
     const { data: insertedProfile, error: insertError } = await supabase
-      .from("profile")
+      .from("profiles")
       .insert([insertPayload])
       .select()
       .single();
@@ -343,7 +343,7 @@ async function loadNextAppointment(userId) {
 
         if (!therapistError && therapist?.profile_id) {
           const { data: therapistProfile, error: profileError } = await supabase
-            .from("profile")
+            .from("profiles")
             .select("full_name")
             .eq("id", therapist.profile_id)
             .maybeSingle();
