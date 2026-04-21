@@ -198,41 +198,69 @@ export async function getUpcomingAppointments(userId) {
 /**
  * Get the very next upcoming appointment.
  */bookAppointment()
-export async function bookAppointment({
-  userId,
-  therapistId,
-  scheduledAt,
-  durationMins = 50,
-  format = 'video',
-  notesClient,
-}) {
-  // 1) Check if therapist is already booked at that exact time
-  const existing = await query(
+export async function getNextAppointment(userId) {
+  const rows = await query(
     supabase
       .from('appointments')
-      .select('id')
-      .eq('therapist_id', therapistId)
-      .eq('scheduled_at', scheduledAt)
+      .select(`
+        id,
+        scheduled_at,
+        duration_mins,
+        format,
+        therapists!therapist_id (
+          id,
+          profiles!user_id (
+            full_name,
+            display_name
+          )
+        )
+      `)
+      .eq('user_id', userId)
       .eq('status', 'scheduled')
+      .gte('scheduled_at', new Date().toISOString())
+      .order('scheduled_at', { ascending: true })
+      .limit(1)
   );
 
-  if (existing.length > 0) {
-    throw new Error('That time slot is already booked. Please choose another time.');
-  }
+  return rows?.[0] ?? null;
+}
 
-  // 2) If free, create appointment
+/**
+ * Cancel an existing appointment.
+ */
+export async function cancelAppointment(
+  appointmentId,
+  cancelledByUserId,
+  reason = ''
+) {
   return query(
     supabase
       .from('appointments')
-      .insert({
-        user_id: userId,
-        therapist_id: therapistId,
-        scheduled_at: scheduledAt,
-        duration_mins: durationMins,
-        format,
-        status: 'scheduled',
-        notes_client: notesClient ?? null,
+      .update({
+        status: 'cancelled',
+        cancelled_by: cancelledByUserId,
+        cancelled_at: new Date().toISOString(),
+        cancel_reason: reason || null,
       })
+      .eq('id', appointmentId)
+      .select(`
+        id,
+        status,
+        cancelled_by,
+        cancelled_at,
+        cancel_reason
+      `)
+      .single()
+  );
+}
+
+/**
+ * Get appointment history for the user.
+ */
+export async function getAppointmentHistory(userId, limit = 20) {
+  return query(
+    supabase
+      .from('appointments')
       .select(`
         id,
         user_id,
@@ -242,9 +270,21 @@ export async function bookAppointment({
         format,
         status,
         notes_client,
+        cancel_reason,
+        cancelled_at,
         created_at,
-        updated_at
+        updated_at,
+        therapists!therapist_id (
+          id,
+          profiles!profile_id (
+            full_name,
+            display_name
+          )
+        )
       `)
-      .single()
+      .eq('user_id', userId)
+      .in('status', ['completed', 'cancelled', 'no_show'])
+      .order('scheduled_at', { ascending: false })
+      .limit(limit)
   );
 }
