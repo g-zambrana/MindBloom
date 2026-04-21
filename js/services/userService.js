@@ -36,7 +36,7 @@ export async function getUserProfile(userId) {
   const row = await safeQuery(
     supabase
       .from('profiles')
-      .select('*, client_profiles(*)')
+      .select('*')
       .eq('id', userId)
       .maybeSingle()
   );
