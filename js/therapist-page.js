@@ -135,7 +135,7 @@ async function loadTherapists() {
     if (!Array.isArray(therapists) || therapists.length === 0) {
       therapists = MOCK_THERAPISTS;
     }
-
+    console.log('therapists:', therapists);
     renderTherapists(therapists);
   } catch (err) {
     console.error('Therapist load failed:', err);
