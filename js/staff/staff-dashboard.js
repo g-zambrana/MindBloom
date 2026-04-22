@@ -163,6 +163,35 @@ function isThisMonth(value) {
   );
 }
 
+function isThisWeek(value) {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+
+  const now = new Date();
+
+  const startOfWeek = new Date(now);
+  startOfWeek.setHours(0, 0, 0, 0);
+  startOfWeek.setDate(now.getDate() - now.getDay());
+
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 7);
+
+  return date >= startOfWeek && date < endOfWeek;
+}
+
+function isSameMonth(value) {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+
+  const now = new Date();
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth()
+  );
+}
+
 function getAppointmentStatusBadge(status) {
   const normalized = String(status || '').toLowerCase();
 
@@ -332,21 +361,26 @@ function renderStaffIdentity(profile, authUser) {
 
 async function fetchProfiles() {
   const { data, error } = await supabase
-    .from('profiles')
-    .select('id, full_name, email, role')
-    .order('id', { ascending: false });
+    .from(PROFILES_TABLE)
+    .select(`
+      id,
+      full_name,
+      email,
+      role,
+      energy_level,
+      anxiety_level,
+      sleep_hours,
+      created_at
+    `)
+    .order('created_at', { ascending: false });
 
   if (error) throw error;
 
   return (data || []).map(profile => ({
     ...profile,
-    energy_level: null,
-    anxiety_level: null,
-    sleep_hours: null,
-    created_at: null,
     display_name: profile.full_name ?? null,
     avatar_url: null,
-    updated_at: null,
+    updated_at: profile.created_at ?? null,
     logged_at: null,
   }));
 }
@@ -468,24 +502,74 @@ function buildTherapistNameMap(therapists, profileMap) {
   return therapistNameMap;
 }
 
-function renderStats(clientProfiles, therapists, upcomingAppointments, alerts, notes) {
-  const activeTherapistRows = therapists.filter(t => t.status === 'active');
-  const inactiveTherapistRows = therapists.filter(t => t.status !== 'active');
-  const appointmentsToday = upcomingAppointments.filter(appt => isToday(appt.scheduled_at));
-  const notesTodayCount = notes.filter(note => isToday(note.created_at)).length;
-  const newClientsThisMonth = clientProfiles.filter(profile => isThisMonth(profile.created_at));
+function renderStats(profiles, therapists, appointments, moodEntries) {
+  const newUsersThisMonth = profiles.filter(profile => {
+    return profile.role === 'user' && isThisMonth(profile.created_at);
+  });
 
-  if (els.totalUsers) els.totalUsers.textContent = String(clientProfiles.length);
-  if (els.totalUsersSub) els.totalUsersSub.textContent = `${newClientsThisMonth.length} new this month`;
+  const now = new Date();
+  const upcomingAppointmentsThisMonth = appointments.filter(appt => {
+    if (!appt.scheduled_at) return false;
 
-  if (els.upcomingAppts) els.upcomingAppts.textContent = String(upcomingAppointments.length);
-  if (els.upcomingApptsSub) els.upcomingApptsSub.textContent = `${appointmentsToday.length} scheduled today`;
+    const scheduledDate = new Date(appt.scheduled_at);
+    if (Number.isNaN(scheduledDate.getTime())) return false;
 
-  if (els.activeTherapists) els.activeTherapists.textContent = String(activeTherapistRows.length);
-  if (els.activeTherapistsSub) els.activeTherapistsSub.textContent = `${inactiveTherapistRows.length} inactive`;
+    return (
+      scheduledDate >= now &&
+      isSameMonth(appt.scheduled_at) &&
+      appt.status === 'scheduled'
+    );
+  });
 
-  if (els.openAlerts) els.openAlerts.textContent = String(alerts.length);
-  if (els.openAlertsSub) els.openAlertsSub.textContent = `${notesTodayCount} notes added today`;
+  const therapistIdsWorkingThisWeek = new Set(
+    appointments
+      .filter(appt => {
+        return (
+          appt.therapist_id &&
+          appt.status === 'scheduled' &&
+          isThisWeek(appt.scheduled_at)
+        );
+      })
+      .map(appt => appt.therapist_id)
+  );
+
+  const activeTherapistsThisWeek = therapists.filter(therapist =>
+    therapistIdsWorkingThisWeek.has(therapist.id)
+  );
+
+  const uniqueMoodEntriesToday = new Set(
+    moodEntries
+      .filter(entry => isToday(entry.created_at))
+      .map(entry => entry.id)
+  );
+
+  if (els.totalUsers) {
+    els.totalUsers.textContent = String(newUsersThisMonth.length);
+  }
+  if (els.totalUsersSub) {
+    els.totalUsersSub.textContent = 'New user accounts this month';
+  }
+
+  if (els.upcomingAppts) {
+    els.upcomingAppts.textContent = String(upcomingAppointmentsThisMonth.length);
+  }
+  if (els.upcomingApptsSub) {
+    els.upcomingApptsSub.textContent = 'Appointments scheduled this month';
+  }
+
+  if (els.activeTherapists) {
+    els.activeTherapists.textContent = String(activeTherapistsThisWeek.length);
+  }
+  if (els.activeTherapistsSub) {
+    els.activeTherapistsSub.textContent = 'Therapists booked this week';
+  }
+
+  if (els.openAlerts) {
+    els.openAlerts.textContent = String(uniqueMoodEntriesToday.size);
+  }
+  if (els.openAlertsSub) {
+    els.openAlertsSub.textContent = 'Unique mood entries created today';
+  }
 }
 
 function renderUsersTable(profiles) {
@@ -494,7 +578,9 @@ function renderUsersTable(profiles) {
   const query = (els.userSearch?.value || '').trim().toLowerCase();
   const filter = els.userFilter?.value || 'all';
 
-  const clientProfiles = profiles.filter(profile => profile.role === 'client');
+  const clientProfiles = profiles.filter(profile => {
+    return profile.role === 'client' || profile.role === 'user';
+  });
 
   const filtered = clientProfiles.filter(profile => {
     const name = (profile.full_name || '').toLowerCase();
@@ -526,7 +612,7 @@ function renderUsersTable(profiles) {
             <span class="user-email">${escapeHtml(profile.email || '')}</span>
           </div>
         </td>
-        <td>${escapeHtml(profile.role || 'client')}</td>
+        <td>${escapeHtml(profile.role || 'user')}</td>
         <td>${escapeHtml(String(energy))}${energy !== '—' ? '/10' : ''}</td>
         <td>${escapeHtml(String(anxiety))}${anxiety !== '—' ? '/10' : ''}</td>
         <td>${escapeHtml(String(sleep))}${sleep !== '—' ? ' hrs' : ''}</td>
@@ -652,7 +738,7 @@ function renderQuickNoteUsers(profiles) {
   if (!els.noteUser) return;
 
   const clients = profiles
-    .filter(profile => profile.role === 'client')
+    .filter(profile => profile.role === 'client' || profile.role === 'user')
     .sort((a, b) => {
       const aName = a.full_name || '';
       const bName = b.full_name || '';
@@ -779,11 +865,12 @@ function attachEvents() {
 
         state.staffNotes = await fetchStaffNotes();
         renderRecentNotes(state.staffNotes, buildProfileMap(state.profiles));
-        renderMiniStats(
-          state.profiles.filter(profile => profile.role === 'client'),
-          state.moodEntries,
-          state.staffNotes
-        );
+
+        const dashboardUsers = state.profiles.filter(profile => {
+          return profile.role === 'client' || profile.role === 'user';
+        });
+
+        renderMiniStats(dashboardUsers, state.moodEntries, state.staffNotes);
 
         showStatus('Note saved successfully.', 'success');
       } catch (error) {
@@ -832,23 +919,23 @@ async function init() {
     state.staffLogs = staffLogs;
     state.moodEntries = moodEntries;
 
-    const clientProfiles = profiles.filter(profile => profile.role === 'client');
+    const dashboardUsers = profiles.filter(profile => {
+      return profile.role === 'client' || profile.role === 'user';
+    });
+
+    const alertUsers = profiles.filter(profile => profile.role === 'client' || profile.role === 'user');
     const profileMap = buildProfileMap(profiles);
     const therapistNameMap = buildTherapistNameMap(therapists, profileMap);
-    const upcomingAppointments = appointments
-      .filter(appt => appt.status === 'scheduled')
-      .filter(appt => appt.scheduled_at && new Date(appt.scheduled_at) >= new Date());
+    const alerts = getOpenAlertsData(alertUsers, appointments, moodEntries);
 
-    const alerts = getOpenAlertsData(clientProfiles, appointments, moodEntries);
-
-    renderStats(clientProfiles, therapists, upcomingAppointments, alerts, staffNotes);
+    renderStats(profiles, therapists, appointments, moodEntries);
     renderUsersTable(profiles);
     renderAppointmentsTable(appointments, profileMap, therapistNameMap);
     renderAlerts(alerts);
     renderActivity(staffLogs, profileMap);
     renderRecentNotes(staffNotes, profileMap);
     renderQuickNoteUsers(profiles);
-    renderMiniStats(clientProfiles, moodEntries, staffNotes);
+    renderMiniStats(dashboardUsers, moodEntries, staffNotes);
     attachEvents();
   } catch (error) {
     console.error('[staff-dashboard] init error:', error);
