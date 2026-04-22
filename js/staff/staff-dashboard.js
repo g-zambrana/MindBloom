@@ -1,12 +1,6 @@
 // /js/staff/staff-dashboard.js
 // MindBloom staff dashboard controller
-// Aligned to the FINAL schema:
-// - profiles
-// - therapists.user_id / status
-// - appointments.scheduled_at / duration_mins / format / status
-// - staff_notes
-// - staff_actions_log
-// - mood_entries
+// Safer version aligned to your live database structure
 
 import { supabase, requireAuth } from '../supabase.js';
 
@@ -147,8 +141,9 @@ function formatRelativeLabel(value) {
 function isToday(value) {
   if (!value) return false;
   const date = new Date(value);
-  const now = new Date();
+  if (Number.isNaN(date.getTime())) return false;
 
+  const now = new Date();
   return (
     date.getFullYear() === now.getFullYear() &&
     date.getMonth() === now.getMonth() &&
@@ -159,8 +154,9 @@ function isToday(value) {
 function isThisMonth(value) {
   if (!value) return false;
   const date = new Date(value);
-  const now = new Date();
+  if (Number.isNaN(date.getTime())) return false;
 
+  const now = new Date();
   return (
     date.getFullYear() === now.getFullYear() &&
     date.getMonth() === now.getMonth()
@@ -266,7 +262,7 @@ function getOpenAlertsData(clientProfiles, appointments, moodEntries) {
           reasons.length > 0
             ? `Latest check-in shows ${reasons.join(', ')}.`
             : 'Recent activity suggests this user may need follow-up.',
-        time: profile.logged_at || profile.updated_at || profile.created_at,
+        time: profile.logged_at || profile.created_at,
       };
     })
     .filter(Boolean)
@@ -283,13 +279,13 @@ async function requireStaffUser() {
 
   const { data: profile, error } = await supabase
     .from(PROFILES_TABLE)
-    .select('id, full_name, display_name, email, avatar_url, role, created_at, updated_at')
+    .select('id, full_name, email, role, created_at')
     .eq('id', authUser.id)
     .maybeSingle();
 
   if (error) throw error;
   if (!profile) {
-    throw new Error('Your profile row was not found in profiles.');
+    throw new Error('Your staff profile was not found in profiles.');
   }
 
   if (!ALLOWED_ROLES.includes(profile.role)) {
@@ -304,8 +300,7 @@ async function requireStaffUser() {
 function renderStaffIdentity(profile, authUser) {
   const displayName =
     profile.full_name ||
-    profile.display_name ||
-    authUser.user_metadata?.full_name ||
+    profile.email?.split('@')[0] ||
     authUser.email?.split('@')[0] ||
     'Staff Member';
 
@@ -322,11 +317,7 @@ function renderStaffIdentity(profile, authUser) {
   }
 
   if (els.avatarInitials) {
-    if (profile.avatar_url) {
-      els.avatarInitials.innerHTML = `<img src="${escapeHtml(profile.avatar_url)}" alt="${escapeHtml(displayName)}" />`;
-    } else {
-      els.avatarInitials.textContent = getInitials(displayName);
-    }
+    els.avatarInitials.textContent = getInitials(displayName);
   }
 
   if (els.todayDate) {
@@ -345,21 +336,24 @@ async function fetchProfiles() {
     .select(`
       id,
       full_name,
-      display_name,
       email,
-      avatar_url,
       role,
       energy_level,
       anxiety_level,
       sleep_hours,
-      logged_at,
-      created_at,
-      updated_at
+      created_at
     `)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return data || [];
+
+  return (data || []).map(profile => ({
+    ...profile,
+    display_name: profile.full_name ?? null,
+    avatar_url: null,
+    updated_at: profile.created_at ?? null,
+    logged_at: null,
+  }));
 }
 
 async function fetchTherapists() {
@@ -375,8 +369,7 @@ async function fetchTherapists() {
       bio,
       rating_avg,
       rating_count,
-      created_at,
-      updated_at
+      created_at
     `)
     .order('created_at', { ascending: false });
 
@@ -472,7 +465,7 @@ function buildTherapistNameMap(therapists, profileMap) {
     therapistNameMap.set(
       therapist.id,
       profile?.full_name ||
-        profile?.display_name ||
+        profile?.email?.split('@')[0] ||
         'Therapist'
     );
   }
@@ -484,30 +477,32 @@ function renderStats(clientProfiles, therapists, upcomingAppointments, alerts, n
   const activeTherapistRows = therapists.filter(t => t.status === 'active');
   const inactiveTherapistRows = therapists.filter(t => t.status !== 'active');
   const appointmentsToday = upcomingAppointments.filter(appt => isToday(appt.scheduled_at));
-  const notesToday = notes.filter(note => isToday(note.created_at));
+  const notesTodayCount = notes.filter(note => isToday(note.created_at)).length;
   const newClientsThisMonth = clientProfiles.filter(profile => isThisMonth(profile.created_at));
 
-  els.totalUsers.textContent = String(clientProfiles.length);
-  els.totalUsersSub.textContent = `${newClientsThisMonth.length} new this month`;
+  if (els.totalUsers) els.totalUsers.textContent = String(clientProfiles.length);
+  if (els.totalUsersSub) els.totalUsersSub.textContent = `${newClientsThisMonth.length} new this month`;
 
-  els.upcomingAppts.textContent = String(upcomingAppointments.length);
-  els.upcomingApptsSub.textContent = `${appointmentsToday.length} scheduled today`;
+  if (els.upcomingAppts) els.upcomingAppts.textContent = String(upcomingAppointments.length);
+  if (els.upcomingApptsSub) els.upcomingApptsSub.textContent = `${appointmentsToday.length} scheduled today`;
 
-  els.activeTherapists.textContent = String(activeTherapistRows.length);
-  els.activeTherapistsSub.textContent = `${inactiveTherapistRows.length} inactive`;
+  if (els.activeTherapists) els.activeTherapists.textContent = String(activeTherapistRows.length);
+  if (els.activeTherapistsSub) els.activeTherapistsSub.textContent = `${inactiveTherapistRows.length} inactive`;
 
-  els.openAlerts.textContent = String(alerts.length);
-  els.openAlertsSub.textContent = `${notesToday.length} notes added today`;
+  if (els.openAlerts) els.openAlerts.textContent = String(alerts.length);
+  if (els.openAlertsSub) els.openAlertsSub.textContent = `${notesTodayCount} notes added today`;
 }
 
 function renderUsersTable(profiles) {
+  if (!els.usersTableBody) return;
+
   const query = (els.userSearch?.value || '').trim().toLowerCase();
   const filter = els.userFilter?.value || 'all';
 
   const clientProfiles = profiles.filter(profile => profile.role === 'client');
 
   const filtered = clientProfiles.filter(profile => {
-    const name = (profile.full_name || profile.display_name || '').toLowerCase();
+    const name = (profile.full_name || '').toLowerCase();
     const email = (profile.email || '').toLowerCase();
     const status = getUserHealthStatus(profile).label;
 
@@ -532,7 +527,7 @@ function renderUsersTable(profiles) {
       <tr>
         <td>
           <div class="user-meta">
-            <span class="user-name">${escapeHtml(profile.full_name || profile.display_name || 'Unnamed User')}</span>
+            <span class="user-name">${escapeHtml(profile.full_name || 'Unnamed User')}</span>
             <span class="user-email">${escapeHtml(profile.email || '')}</span>
           </div>
         </td>
@@ -553,6 +548,8 @@ function renderUsersTable(profiles) {
 }
 
 function renderAppointmentsTable(appointments, profileMap, therapistNameMap) {
+  if (!els.appointmentsTableBody) return;
+
   const now = new Date();
 
   const upcoming = appointments
@@ -568,7 +565,7 @@ function renderAppointmentsTable(appointments, profileMap, therapistNameMap) {
 
     return `
       <tr>
-        <td>${escapeHtml(client?.full_name || client?.display_name || 'Unknown User')}</td>
+        <td>${escapeHtml(client?.full_name || 'Unknown User')}</td>
         <td>${escapeHtml(therapistName)}</td>
         <td>${escapeHtml(formatDateTime(appt.scheduled_at))}</td>
         <td>${escapeHtml(appt.format || '—')}</td>
@@ -585,10 +582,12 @@ function renderAppointmentsTable(appointments, profileMap, therapistNameMap) {
 }
 
 function renderAlerts(alerts) {
+  if (!els.alertList) return;
+
   const markup = alerts.map(alert => `
     <div class="alert-item">
       <div class="alert-head">
-        <div class="alert-title">${escapeHtml(alert.profile.full_name || alert.profile.display_name || 'Unknown User')}</div>
+        <div class="alert-title">${escapeHtml(alert.profile.full_name || 'Unknown User')}</div>
         <div class="small-time">${escapeHtml(formatRelativeLabel(alert.time))}</div>
       </div>
       <div class="alert-body">${escapeHtml(alert.reason)}</div>
@@ -603,9 +602,11 @@ function renderAlerts(alerts) {
 }
 
 function renderActivity(logs, profileMap) {
+  if (!els.activityList) return;
+
   const markup = logs.slice(0, 5).map(log => {
     const staffProfile = profileMap.get(log.staff_id);
-    const staffName = staffProfile?.full_name || staffProfile?.display_name || 'Staff member';
+    const staffName = staffProfile?.full_name || 'Staff member';
 
     return `
       <div class="activity-item">
@@ -628,9 +629,11 @@ function renderActivity(logs, profileMap) {
 }
 
 function renderRecentNotes(notes, profileMap) {
+  if (!els.recentNotesList) return;
+
   const markup = notes.slice(0, 5).map(note => {
     const clientProfile = profileMap.get(note.user_id);
-    const clientName = clientProfile?.full_name || clientProfile?.display_name || 'Unknown User';
+    const clientName = clientProfile?.full_name || 'Unknown User';
 
     return `
       <div class="note-item">
@@ -651,11 +654,13 @@ function renderRecentNotes(notes, profileMap) {
 }
 
 function renderQuickNoteUsers(profiles) {
+  if (!els.noteUser) return;
+
   const clients = profiles
     .filter(profile => profile.role === 'client')
     .sort((a, b) => {
-      const aName = a.full_name || a.display_name || '';
-      const bName = b.full_name || b.display_name || '';
+      const aName = a.full_name || '';
+      const bName = b.full_name || '';
       return aName.localeCompare(bName);
     });
 
@@ -663,7 +668,7 @@ function renderQuickNoteUsers(profiles) {
     <option value="">Select user</option>
     ${clients.map(client => `
       <option value="${escapeHtml(client.id)}">
-        ${escapeHtml(client.full_name || client.display_name || client.email || 'Unnamed User')}
+        ${escapeHtml(client.full_name || client.email || 'Unnamed User')}
       </option>
     `).join('')}
   `;
@@ -686,13 +691,16 @@ function renderMiniStats(clientProfiles, moodEntries, staffNotes) {
     ? (sleepValues.reduce((sum, value) => sum + value, 0) / sleepValues.length).toFixed(1)
     : '—';
 
-  const highAnxietyCount = clientProfiles.filter(profile => Number(profile.anxiety_level ?? 0) >= 8).length;
+  const highAnxietyCountValue = clientProfiles.filter(
+    profile => Number(profile.anxiety_level ?? 0) >= 8
+  ).length;
+
   const notesTodayCount = staffNotes.filter(note => isToday(note.created_at)).length;
 
-  els.avgMood.textContent = avgMood;
-  els.avgSleep.textContent = avgSleep === '—' ? '—' : `${avgSleep}h`;
-  els.highAnxietyCount.textContent = String(highAnxietyCount);
-  els.notesToday.textContent = String(notesTodayCount);
+  if (els.avgMood) els.avgMood.textContent = avgMood;
+  if (els.avgSleep) els.avgSleep.textContent = avgSleep === '—' ? '—' : `${avgSleep}h`;
+  if (els.highAnxietyCount) els.highAnxietyCount.textContent = String(highAnxietyCountValue);
+  if (els.notesToday) els.notesToday.textContent = String(notesTodayCount);
 }
 
 async function saveQuickNote(staffId, userId, note) {
@@ -743,8 +751,8 @@ function attachEvents() {
       event.preventDefault();
       clearStatus();
 
-      const selectedUserId = els.noteUser.value;
-      const note = els.noteBody.value.trim();
+      const selectedUserId = els.noteUser?.value;
+      const note = els.noteBody?.value.trim() || '';
       const submitButton = els.quickNoteForm.querySelector('button[type="submit"]');
 
       if (!selectedUserId) {
@@ -757,9 +765,11 @@ function attachEvents() {
         return;
       }
 
-      const originalText = submitButton.textContent;
-      submitButton.disabled = true;
-      submitButton.textContent = 'Saving...';
+      const originalText = submitButton?.textContent || 'Save note';
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = 'Saving...';
+      }
 
       try {
         await saveQuickNote(state.currentUser.id, selectedUserId, note);
@@ -769,8 +779,8 @@ function attachEvents() {
           'Created a staff note from the staff dashboard.'
         );
 
-        els.noteUser.value = '';
-        els.noteBody.value = '';
+        if (els.noteUser) els.noteUser.value = '';
+        if (els.noteBody) els.noteBody.value = '';
 
         state.staffNotes = await fetchStaffNotes();
         renderRecentNotes(state.staffNotes, buildProfileMap(state.profiles));
@@ -785,8 +795,10 @@ function attachEvents() {
         console.error('[staff-dashboard] quick note error:', error);
         showStatus(`Could not save note: ${error.message}`, 'error');
       } finally {
-        submitButton.disabled = false;
-        submitButton.textContent = originalText;
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.textContent = originalText;
+        }
       }
     });
   }
@@ -802,7 +814,14 @@ async function init() {
 
     renderStaffIdentity(profile, authUser);
 
-    const [profiles, therapists, appointments, staffNotes, staffLogs, moodEntries] = await Promise.all([
+    const [
+      profiles,
+      therapists,
+      appointments,
+      staffNotes,
+      staffLogs,
+      moodEntries,
+    ] = await Promise.all([
       fetchProfiles(),
       fetchTherapists(),
       fetchAppointments(),
