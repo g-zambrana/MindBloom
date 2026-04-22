@@ -148,6 +148,13 @@
       font-weight: 700;
       color: #fff;
       flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .sb-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
 
     .sb-uname {
@@ -160,6 +167,7 @@
       font-size: 11px;
       color: rgba(255,255,255,0.45);
       margin-top: 1px;
+      word-break: break-word;
     }
 
     .main {
@@ -193,37 +201,6 @@
       display: flex;
       align-items: center;
       gap: 10px;
-    }
-
-    .btn-icon {
-      width: 38px;
-      height: 38px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: var(--surface);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      color: var(--muted);
-      box-shadow: var(--shadow);
-      position: relative;
-    }
-
-    .notif-badge {
-      position: absolute;
-      top: -4px;
-      right: -4px;
-      background: #D9534F;
-      color: #fff;
-      font-size: 9px;
-      font-weight: 700;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
     }
 
     .btn-logout {
@@ -324,70 +301,6 @@
       font-size: 12px;
       color: var(--muted);
     }
-
-    .section-title {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 12px;
-    }
-
-    .feature-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 14px;
-      margin-bottom: 26px;
-    }
-
-    .feature-card {
-      background: var(--surface);
-      border-radius: var(--radius);
-      padding: 18px;
-      box-shadow: var(--shadow);
-      text-decoration: none;
-      color: inherit;
-      transition: box-shadow 0.15s, transform 0.15s;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .feature-card:hover {
-      box-shadow: var(--shadow-hover);
-      transform: translateY(-2px);
-    }
-
-    .feature-icon {
-      font-size: 24px;
-      width: 46px;
-      height: 46px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .feature-name {
-      font-size: 14px;
-      font-weight: 700;
-    }
-
-    .feature-desc {
-      font-size: 12px;
-      color: var(--muted);
-      line-height: 1.45;
-    }
-
-    .ic-users      { background: #EAF4FF; }
-    .ic-appts      { background: #F3EAFD; }
-    .ic-therapists { background: #E8F5E9; }
-    .ic-notes      { background: #FFF6E7; }
-    .ic-alerts     { background: #FFECEC; }
-    .ic-logs       { background: #F1F1F1; }
-    .ic-journals   { background: #EEF7F0; }
-    .ic-reports    { background: #ECF3F8; }
 
     .dashboard-grid {
       display: grid;
@@ -611,9 +524,39 @@
       color: var(--primary);
     }
 
+    .empty-state {
+      color: var(--muted);
+      font-size: 13px;
+      padding: 8px 0;
+    }
+
+    .status-message {
+      display: none;
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .status-message.show {
+      display: block;
+    }
+
+    .status-message.error {
+      background: #FDECEC;
+      color: #B94A48;
+      border: 1px solid rgba(185, 74, 72, 0.2);
+    }
+
+    .status-message.success {
+      background: #EAF6EE;
+      color: #2E7D4F;
+      border: 1px solid rgba(46, 125, 79, 0.2);
+    }
+
     @media (max-width: 1180px) {
-      .stats-row,
-      .feature-grid {
+      .stats-row {
         grid-template-columns: repeat(2, 1fr);
       }
 
@@ -647,7 +590,6 @@
 
     @media (max-width: 640px) {
       .stats-row,
-      .feature-grid,
       .mini-stats {
         grid-template-columns: 1fr;
       }
@@ -685,61 +627,30 @@
     <div class="sb-nav">
       <div class="sb-label">Overview</div>
 
-      <a class="nav-item active" href="/staff-dashboard">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-        </svg>
-        Dashboard
-      </a>
-
-      <a class="nav-item" href="/staff-users">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-        </svg>
-        Users
-      </a>
-
-      <a class="nav-item" href="/staff-appointments">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-        </svg>
-        Appointments
-      </a>
-
-      <a class="nav-item" href="/staff-reports">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-        </svg>
-        Reports
-      </a>
-
-      <a class="nav-item" href="/staff-therapists">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-        </svg>
-        Therapists
-      </a>
+      <a class="nav-item active" href="/staff-dashboard">Dashboard</a>
+      <a class="nav-item" href="/staff-users">Users</a>
+      <a class="nav-item" href="/staff-appointments">Appointments</a>
+      <a class="nav-item" href="/staff-reports">Reports</a>
+      <a class="nav-item" href="/staff-therapists">Therapists</a>
 
       <div class="sb-label" style="margin-top: 6px;">System</div>
-
-      <a class="nav-item" href="/staff-alerts">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M10.29 3.86L1.82 18A2 2 0 0 0 3.53 21h16.94a2 2 0 0 0 1.71-3l-8.47-14.14a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>
-        Alerts
-      </a>
-
+      <a class="nav-item" href="/staff-alerts">Alerts</a>
+      <a class="nav-item" href="/staff-notes">Notes</a>
+      <a class="nav-item" href="/staff-logs">Logs</a>
+    </div>
 
     <div class="sb-user">
       <div class="sb-avatar" id="avatar-initials">ST</div>
       <div>
-        <div class="sb-uname" id="sb-username">Staff Member</div>
-        <div class="sb-uemail" id="sb-useremail">staff@mindbloom.com</div>
+        <div class="sb-uname" id="sb-username">Loading...</div>
+        <div class="sb-uemail" id="sb-useremail">Loading...</div>
       </div>
     </div>
   </nav>
 
   <main class="main">
+    <div id="status-message" class="status-message"></div>
+
     <div class="page-header">
       <div>
         <div class="page-greet">Staff Dashboard</div>
@@ -751,32 +662,42 @@
       </div>
     </div>
 
+    <section class="staff-banner">
+      <div class="staff-banner-left">
+        <div class="staff-banner-icon">🌿</div>
+        <div>
+          <h2 id="banner-staff-name">Welcome back</h2>
+          <p id="banner-staff-role">Loading your staff dashboard...</p>
+        </div>
+      </div>
+      <div class="banner-tag" id="banner-tag">Staff Portal</div>
+    </section>
+
     <section class="stats-row">
       <div class="stat-card">
-        <div class="stat-label">Total Users</div>
-        <div class="stat-value" id="total-users">148</div>
-        <div class="stat-sub">12 new this month</div>
+        <div class="stat-label">Total Clients</div>
+        <div class="stat-value" id="total-users">—</div>
+        <div class="stat-sub" id="total-users-sub">Loading...</div>
       </div>
 
       <div class="stat-card">
         <div class="stat-label">Upcoming Appointments</div>
-        <div class="stat-value" id="upcoming-appts">19</div>
-        <div class="stat-sub">5 scheduled today</div>
+        <div class="stat-value" id="upcoming-appts">—</div>
+        <div class="stat-sub" id="upcoming-appts-sub">Loading...</div>
       </div>
 
       <div class="stat-card">
         <div class="stat-label">Active Therapists</div>
-        <div class="stat-value" id="active-therapists">8</div>
-        <div class="stat-sub">2 marked unavailable</div>
+        <div class="stat-value" id="active-therapists">—</div>
+        <div class="stat-sub" id="active-therapists-sub">Loading...</div>
       </div>
 
       <div class="stat-card">
         <div class="stat-label">Open Alerts</div>
-        <div class="stat-value" id="open-alerts">3</div>
-        <div class="stat-sub">Needs follow-up review</div>
+        <div class="stat-value" id="open-alerts">—</div>
+        <div class="stat-sub" id="open-alerts-sub">Loading...</div>
       </div>
     </section>
-
 
     <section class="dashboard-grid">
       <div>
@@ -789,10 +710,10 @@
           <div class="search-row">
             <input class="search-input" type="text" placeholder="Search by name or email" id="user-search" />
             <select class="filter-select" id="user-filter">
-              <option>All users</option>
-              <option>Needs review</option>
-              <option>Recent signups</option>
-              <option>High anxiety</option>
+              <option value="all">All users</option>
+              <option value="needs_review">Needs review</option>
+              <option value="recent_signups">Recent signups</option>
+              <option value="high_anxiety">High anxiety</option>
             </select>
           </div>
 
@@ -808,45 +729,7 @@
               </tr>
             </thead>
             <tbody id="users-table-body">
-              <tr>
-                <td>
-                  <div class="user-meta">
-                    <span class="user-name">Ava Thompson</span>
-                    <span class="user-email">ava@email.com</span>
-                  </div>
-                </td>
-                <td>client</td>
-                <td>4/10</td>
-                <td>8/10</td>
-                <td>4 hrs</td>
-                <td><span class="badge badge-danger">Needs review</span></td>
-              </tr>
-              <tr>
-                <td>
-                  <div class="user-meta">
-                    <span class="user-name">Noah Rivera</span>
-                    <span class="user-email">noah@email.com</span>
-                  </div>
-                </td>
-                <td>client</td>
-                <td>7/10</td>
-                <td>3/10</td>
-                <td>7 hrs</td>
-                <td><span class="badge badge-success">Stable</span></td>
-              </tr>
-              <tr>
-                <td>
-                  <div class="user-meta">
-                    <span class="user-name">Sophia Lee</span>
-                    <span class="user-email">sophia@email.com</span>
-                  </div>
-                </td>
-                <td>client</td>
-                <td>5/10</td>
-                <td>6/10</td>
-                <td>5 hrs</td>
-                <td><span class="badge badge-warn">Monitor</span></td>
-              </tr>
+              <tr><td colspan="6">Loading users...</td></tr>
             </tbody>
           </table>
         </div>
@@ -863,32 +746,12 @@
                 <th>User</th>
                 <th>Therapist</th>
                 <th>Date</th>
-                <th>Time</th>
+                <th>Format</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody id="appointments-table-body">
-              <tr>
-                <td>Ava Thompson</td>
-                <td>Dr. Emily Carter</td>
-                <td>Apr 21</td>
-                <td>10:00 AM</td>
-                <td><span class="badge badge-success">Confirmed</span></td>
-              </tr>
-              <tr>
-                <td>Noah Rivera</td>
-                <td>Dr. James Hall</td>
-                <td>Apr 21</td>
-                <td>1:30 PM</td>
-                <td><span class="badge badge-neutral">Pending</span></td>
-              </tr>
-              <tr>
-                <td>Sophia Lee</td>
-                <td>Dr. Emily Carter</td>
-                <td>Apr 22</td>
-                <td>9:00 AM</td>
-                <td><span class="badge badge-warn">Rescheduled</span></td>
-              </tr>
+              <tr><td colspan="5">Loading appointments...</td></tr>
             </tbody>
           </table>
         </div>
@@ -901,27 +764,7 @@
 
           <div class="activity-list" id="activity-list">
             <div class="activity-item">
-              <div class="activity-head">
-                <div class="activity-title">Appointment status updated</div>
-                <div class="small-time">10 min ago</div>
-              </div>
-              <div class="activity-body">Maria Lopez marked Ava Thompson's appointment as confirmed.</div>
-            </div>
-
-            <div class="activity-item">
-              <div class="activity-head">
-                <div class="activity-title">Staff note added</div>
-                <div class="small-time">34 min ago</div>
-              </div>
-              <div class="activity-body">James Hall added a follow-up note for Noah Rivera after session review.</div>
-            </div>
-
-            <div class="activity-item">
-              <div class="activity-head">
-                <div class="activity-title">Therapist availability changed</div>
-                <div class="small-time">1 hr ago</div>
-              </div>
-              <div class="activity-body">Dr. Emily Carter updated Thursday availability from 9:00 AM to 3:00 PM.</div>
+              <div class="activity-body">Loading recent activity...</div>
             </div>
           </div>
         </div>
@@ -936,27 +779,7 @@
 
           <div class="alert-list" id="alert-list">
             <div class="alert-item">
-              <div class="alert-head">
-                <div class="alert-title">Ava Thompson</div>
-                <div class="small-time">Today</div>
-              </div>
-              <div class="alert-body">Low energy, high anxiety, and reduced sleep logged in latest check-in.</div>
-            </div>
-
-            <div class="alert-item">
-              <div class="alert-head">
-                <div class="alert-title">Jordan Kim</div>
-                <div class="small-time">Yesterday</div>
-              </div>
-              <div class="alert-body">No mood entry or journal activity for 6 days after recent appointment.</div>
-            </div>
-
-            <div class="alert-item">
-              <div class="alert-head">
-                <div class="alert-title">Sophia Lee</div>
-                <div class="small-time">Yesterday</div>
-              </div>
-              <div class="alert-body">Multiple rescheduled appointments in the last two weeks.</div>
+              <div class="alert-body">Loading alerts...</div>
             </div>
           </div>
         </div>
@@ -968,10 +791,7 @@
 
           <form class="quick-note-form" id="quick-note-form">
             <select class="filter-select" id="note-user">
-              <option>Select user</option>
-              <option>Ava Thompson</option>
-              <option>Noah Rivera</option>
-              <option>Sophia Lee</option>
+              <option value="">Select user</option>
             </select>
 
             <textarea class="note-textarea" id="note-body" placeholder="Write an internal staff note..."></textarea>
@@ -987,19 +807,19 @@
           <div class="mini-stats">
             <div class="mini-stat">
               <div class="mini-stat-label">Avg Mood</div>
-              <div class="mini-stat-value">6.4</div>
+              <div class="mini-stat-value" id="avg-mood">—</div>
             </div>
             <div class="mini-stat">
               <div class="mini-stat-label">Avg Sleep</div>
-              <div class="mini-stat-value">6.8h</div>
+              <div class="mini-stat-value" id="avg-sleep">—</div>
             </div>
             <div class="mini-stat">
               <div class="mini-stat-label">High Anxiety</div>
-              <div class="mini-stat-value">11</div>
+              <div class="mini-stat-value" id="high-anxiety-count">—</div>
             </div>
             <div class="mini-stat">
               <div class="mini-stat-label">Notes Today</div>
-              <div class="mini-stat-value">7</div>
+              <div class="mini-stat-value" id="notes-today">—</div>
             </div>
           </div>
         </div>
@@ -1012,19 +832,7 @@
 
           <div class="note-list" id="recent-notes-list">
             <div class="note-item">
-              <div class="note-head">
-                <div class="note-title">Ava Thompson</div>
-                <div class="small-time">Today</div>
-              </div>
-              <div class="note-body">Follow up after tomorrow's session regarding sleep consistency and stress load.</div>
-            </div>
-
-            <div class="note-item">
-              <div class="note-head">
-                <div class="note-title">Noah Rivera</div>
-                <div class="small-time">Today</div>
-              </div>
-              <div class="note-body">Reported improvement in mood tracking consistency over the last week.</div>
+              <div class="note-body">Loading recent notes...</div>
             </div>
           </div>
         </div>

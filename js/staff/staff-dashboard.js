@@ -1,30 +1,55 @@
-// /js/staff-dashboard.js
-// Controller for /pages/staff/staff-dashboard
-// Staff-only dashboard for MindBloom
+// /js/staff/staff-dashboard.js
+// MindBloom staff dashboard controller
+// Aligned to the FINAL schema:
+// - profiles
+// - therapists.user_id / status
+// - appointments.scheduled_at / duration_mins / format / status
+// - staff_notes
+// - staff_actions_log
+// - mood_entries
 
 import { supabase, requireAuth } from '../supabase.js';
 
-const PROFILE_TABLE = 'profile'; // change to 'profiles' if your real table is plural
-const ALLOWED_ROLES = ['staff', 'admin', 'therapist'];
-const LOGIN_PATH = '/staff-login';
+const PROFILES_TABLE = 'profiles';
+const STAFF_LOGIN_PATH = '/staff-login';
+const ALLOWED_ROLES = ['staff', 'admin'];
+
+const state = {
+  currentUser: null,
+  currentProfile: null,
+  profiles: [],
+  therapists: [],
+  appointments: [],
+  staffNotes: [],
+  staffLogs: [],
+  moodEntries: [],
+};
 
 const els = {
   todayDate: document.getElementById('today-date'),
   logoutBtn: document.getElementById('logoutBtn'),
+
   avatarInitials: document.getElementById('avatar-initials'),
   sbUsername: document.getElementById('sb-username'),
   sbUseremail: document.getElementById('sb-useremail'),
-  notifBadge: document.getElementById('notif-badge'),
+
+  bannerStaffName: document.getElementById('banner-staff-name'),
+  bannerStaffRole: document.getElementById('banner-staff-role'),
+  bannerTag: document.getElementById('banner-tag'),
 
   totalUsers: document.getElementById('total-users'),
+  totalUsersSub: document.getElementById('total-users-sub'),
   upcomingAppts: document.getElementById('upcoming-appts'),
+  upcomingApptsSub: document.getElementById('upcoming-appts-sub'),
   activeTherapists: document.getElementById('active-therapists'),
+  activeTherapistsSub: document.getElementById('active-therapists-sub'),
   openAlerts: document.getElementById('open-alerts'),
+  openAlertsSub: document.getElementById('open-alerts-sub'),
 
   usersTableBody: document.getElementById('users-table-body'),
   appointmentsTableBody: document.getElementById('appointments-table-body'),
-  alertList: document.getElementById('alert-list'),
   activityList: document.getElementById('activity-list'),
+  alertList: document.getElementById('alert-list'),
   recentNotesList: document.getElementById('recent-notes-list'),
 
   userSearch: document.getElementById('user-search'),
@@ -33,7 +58,26 @@ const els = {
   quickNoteForm: document.getElementById('quick-note-form'),
   noteUser: document.getElementById('note-user'),
   noteBody: document.getElementById('note-body'),
+
+  avgMood: document.getElementById('avg-mood'),
+  avgSleep: document.getElementById('avg-sleep'),
+  highAnxietyCount: document.getElementById('high-anxiety-count'),
+  notesToday: document.getElementById('notes-today'),
+
+  statusMessage: document.getElementById('status-message'),
 };
+
+function showStatus(message, type = 'success') {
+  if (!els.statusMessage) return;
+  els.statusMessage.textContent = message;
+  els.statusMessage.className = `status-message show ${type}`;
+}
+
+function clearStatus() {
+  if (!els.statusMessage) return;
+  els.statusMessage.textContent = '';
+  els.statusMessage.className = 'status-message';
+}
 
 function escapeHtml(value = '') {
   return String(value)
@@ -45,26 +89,33 @@ function escapeHtml(value = '') {
 }
 
 function getInitials(name = '') {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .map(part => part[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase() || '?';
+  return (
+    name
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(part => part[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || 'MB'
+  );
 }
 
-function formatDate(dateValue, options = {}) {
-  if (!dateValue) return '—';
-  const date = new Date(dateValue);
+function formatDate(value) {
+  if (!value) return '—';
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
 
-  return date.toLocaleDateString('en-US', options);
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
-function formatDateTime(dateValue) {
-  if (!dateValue) return '—';
-  const date = new Date(dateValue);
+function formatDateTime(value) {
+  if (!value) return '—';
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
 
   return date.toLocaleString('en-US', {
@@ -75,92 +126,208 @@ function formatDateTime(dateValue) {
   });
 }
 
-function combineAppointmentDateTime(appointment) {
-  if (!appointment?.appointment_date) return null;
+function formatRelativeLabel(value) {
+  if (!value) return 'Recent';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Recent';
 
-  const datePart = appointment.appointment_date;
-  const timePart = appointment.appointment_time || '00:00:00';
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
 
-  const combined = new Date(`${datePart}T${timePart}`);
-  return Number.isNaN(combined.getTime()) ? null : combined;
+  if (diffMins < 60) return `${Math.max(diffMins, 1)} min ago`;
+  if (diffHours < 24) return `${diffHours} hr ago`;
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  return formatDateTime(value);
 }
 
-function getUserStatus(profileRow) {
-  const anxiety = Number(profileRow?.anxiety_level ?? 0);
-  const energy = Number(profileRow?.energy_level ?? 0);
-  const sleep = Number(profileRow?.sleep_hours ?? 0);
+function isToday(value) {
+  if (!value) return false;
+  const date = new Date(value);
+  const now = new Date();
 
-  if ((anxiety >= 8 && energy <= 4) || sleep <= 4) {
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  );
+}
+
+function isThisMonth(value) {
+  if (!value) return false;
+  const date = new Date(value);
+  const now = new Date();
+
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth()
+  );
+}
+
+function getAppointmentStatusBadge(status) {
+  const normalized = String(status || '').toLowerCase();
+
+  if (normalized === 'scheduled' || normalized === 'completed') {
+    return 'badge-success';
+  }
+  if (normalized === 'cancelled' || normalized === 'canceled' || normalized === 'no_show') {
+    return 'badge-danger';
+  }
+  return 'badge-neutral';
+}
+
+function getUserHealthStatus(profile) {
+  const energy = Number(profile?.energy_level ?? NaN);
+  const anxiety = Number(profile?.anxiety_level ?? NaN);
+  const sleep = Number(profile?.sleep_hours ?? NaN);
+
+  if (
+    Number.isFinite(anxiety) &&
+    Number.isFinite(energy) &&
+    Number.isFinite(sleep) &&
+    ((anxiety >= 8 && energy <= 4) || sleep <= 4)
+  ) {
     return { label: 'Needs review', className: 'badge-danger' };
   }
 
-  if (anxiety >= 6 || energy <= 5 || sleep <= 5) {
+  if (
+    (Number.isFinite(anxiety) && anxiety >= 6) ||
+    (Number.isFinite(energy) && energy <= 5) ||
+    (Number.isFinite(sleep) && sleep <= 5)
+  ) {
     return { label: 'Monitor', className: 'badge-warn' };
   }
 
   return { label: 'Stable', className: 'badge-success' };
 }
 
-function getAlertReason(profileRow) {
-  const anxiety = Number(profileRow?.anxiety_level ?? 0);
-  const energy = Number(profileRow?.energy_level ?? 0);
-  const sleep = Number(profileRow?.sleep_hours ?? 0);
+function getOpenAlertsData(clientProfiles, appointments, moodEntries) {
+  const now = new Date();
+  const moodMap = new Map();
 
-  if (anxiety >= 8 && energy <= 4 && sleep <= 5) {
-    return 'Low energy, high anxiety, and reduced sleep in latest check-in.';
+  for (const entry of moodEntries) {
+    if (!moodMap.has(entry.user_id)) {
+      moodMap.set(entry.user_id, entry);
+    }
   }
 
-  if (anxiety >= 8) {
-    return 'Elevated anxiety level in latest check-in.';
-  }
+  return clientProfiles
+    .map(profile => {
+      const energy = Number(profile.energy_level ?? NaN);
+      const anxiety = Number(profile.anxiety_level ?? NaN);
+      const sleep = Number(profile.sleep_hours ?? NaN);
+      const latestMood = moodMap.get(profile.id);
 
-  if (sleep <= 4) {
-    return 'Very low sleep hours reported in latest check-in.';
-  }
+      let score = 0;
+      const reasons = [];
 
-  if (energy <= 4) {
-    return 'Low energy level reported recently.';
-  }
+      if (Number.isFinite(energy) && energy <= 4) {
+        score += 1;
+        reasons.push('low energy');
+      }
 
-  return 'Recent activity suggests this user may need follow-up.';
+      if (Number.isFinite(anxiety) && anxiety >= 8) {
+        score += 2;
+        reasons.push('high anxiety');
+      }
+
+      if (Number.isFinite(sleep) && sleep <= 4) {
+        score += 2;
+        reasons.push('reduced sleep');
+      }
+
+      if (latestMood && Number(latestMood.mood_rating ?? 10) <= 3) {
+        score += 2;
+        reasons.push('very low mood');
+      }
+
+      const hasUpcomingAppointment = appointments.some(appt => {
+        return (
+          appt.user_id === profile.id &&
+          appt.status === 'scheduled' &&
+          appt.scheduled_at &&
+          new Date(appt.scheduled_at) >= now
+        );
+      });
+
+      if (!hasUpcomingAppointment) {
+        score += 1;
+      }
+
+      if (score < 3) return null;
+
+      return {
+        profile,
+        score,
+        reason:
+          reasons.length > 0
+            ? `Latest check-in shows ${reasons.join(', ')}.`
+            : 'Recent activity suggests this user may need follow-up.',
+        time: profile.logged_at || profile.updated_at || profile.created_at,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
 }
 
 async function requireStaffUser() {
-  const user = await requireAuth();
-  if (!user) throw new Error('Not authenticated');
+  const authUser = await requireAuth();
+  if (!authUser) {
+    window.location.replace(STAFF_LOGIN_PATH);
+    throw new Error('Not authenticated');
+  }
 
   const { data: profile, error } = await supabase
-    .from(PROFILE_TABLE)
-    .select('id, full_name, email, role')
-    .eq('id', user.id)
+    .from(PROFILES_TABLE)
+    .select('id, full_name, display_name, email, avatar_url, role, created_at, updated_at')
+    .eq('id', authUser.id)
     .maybeSingle();
 
-  if (error) {
-    console.error('[staff-dashboard] role lookup failed:', error);
-    throw error;
+  if (error) throw error;
+  if (!profile) {
+    throw new Error('Your profile row was not found in profiles.');
   }
 
-  const role = profile?.role ?? user.user_metadata?.role ?? null;
-
-  if (!ALLOWED_ROLES.includes(role)) {
+  if (!ALLOWED_ROLES.includes(profile.role)) {
     await supabase.auth.signOut();
-    window.location.replace(LOGIN_PATH);
-    throw new Error('Unauthorized');
+    window.location.replace(STAFF_LOGIN_PATH);
+    throw new Error('Unauthorized staff access.');
   }
 
-  return { user, profile };
+  return { authUser, profile };
 }
 
-function renderStaffIdentity(user, profile) {
+function renderStaffIdentity(profile, authUser) {
   const displayName =
-    profile?.full_name ||
-    user.user_metadata?.full_name ||
-    user.email?.split('@')[0] ||
+    profile.full_name ||
+    profile.display_name ||
+    authUser.user_metadata?.full_name ||
+    authUser.email?.split('@')[0] ||
     'Staff Member';
 
-  els.sbUsername.textContent = displayName;
-  els.sbUseremail.textContent = user.email || '';
-  els.avatarInitials.textContent = getInitials(displayName);
+  const email = profile.email || authUser.email || '';
+
+  if (els.sbUsername) els.sbUsername.textContent = displayName;
+  if (els.sbUseremail) els.sbUseremail.textContent = email;
+  if (els.bannerStaffName) els.bannerStaffName.textContent = `Welcome back, ${displayName}`;
+  if (els.bannerStaffRole) {
+    els.bannerStaffRole.textContent = `Signed in as ${profile.role}. Here is your live operations overview.`;
+  }
+  if (els.bannerTag) {
+    els.bannerTag.textContent = String(profile.role || 'staff').toUpperCase();
+  }
+
+  if (els.avatarInitials) {
+    if (profile.avatar_url) {
+      els.avatarInitials.innerHTML = `<img src="${escapeHtml(profile.avatar_url)}" alt="${escapeHtml(displayName)}" />`;
+    } else {
+      els.avatarInitials.textContent = getInitials(displayName);
+    }
+  }
 
   if (els.todayDate) {
     els.todayDate.textContent = new Date().toLocaleDateString('en-US', {
@@ -174,9 +341,44 @@ function renderStaffIdentity(user, profile) {
 
 async function fetchProfiles() {
   const { data, error } = await supabase
-    .from(PROFILE_TABLE)
-    .select('id, full_name, email, role, energy_level, anxiety_level, sleep_hours, logged_at, created_at')
-    .order('logged_at', { ascending: false, nullsFirst: false });
+    .from(PROFILES_TABLE)
+    .select(`
+      id,
+      full_name,
+      display_name,
+      email,
+      avatar_url,
+      role,
+      energy_level,
+      anxiety_level,
+      sleep_hours,
+      logged_at,
+      created_at,
+      updated_at
+    `)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+async function fetchTherapists() {
+  const { data, error } = await supabase
+    .from('therapists')
+    .select(`
+      id,
+      user_id,
+      status,
+      credentials,
+      specializations,
+      languages,
+      bio,
+      rating_avg,
+      rating_count,
+      created_at,
+      updated_at
+    `)
+    .order('created_at', { ascending: false });
 
   if (error) throw error;
   return data || [];
@@ -189,22 +391,15 @@ async function fetchAppointments() {
       id,
       user_id,
       therapist_id,
-      appointment_date,
-      appointment_time,
+      scheduled_at,
+      duration_mins,
+      format,
       status,
-      notes,
-      created_at
+      notes_client,
+      created_at,
+      updated_at
     `)
-    .order('appointment_date', { ascending: true });
-
-  if (error) throw error;
-  return data || [];
-}
-
-async function fetchTherapists() {
-  const { data, error } = await supabase
-    .from('therapists')
-    .select('id, profile_id, specialty, phone, bio, is_available, created_at');
+    .order('scheduled_at', { ascending: true });
 
   if (error) throw error;
   return data || [];
@@ -213,7 +408,14 @@ async function fetchTherapists() {
 async function fetchStaffNotes() {
   const { data, error } = await supabase
     .from('staff_notes')
-    .select('id, staff_id, user_id, appointment_id, note, created_at')
+    .select(`
+      id,
+      staff_id,
+      user_id,
+      appointment_id,
+      note,
+      created_at
+    `)
     .order('created_at', { ascending: false })
     .limit(10);
 
@@ -224,7 +426,14 @@ async function fetchStaffNotes() {
 async function fetchStaffLogs() {
   const { data, error } = await supabase
     .from('staff_actions_log')
-    .select('id, staff_id, action_type, target_id, description, created_at')
+    .select(`
+      id,
+      staff_id,
+      action_type,
+      target_id,
+      description,
+      created_at
+    `)
     .order('created_at', { ascending: false })
     .limit(10);
 
@@ -235,9 +444,17 @@ async function fetchStaffLogs() {
 async function fetchMoodEntries() {
   const { data, error } = await supabase
     .from('mood_entries')
-    .select('id, user_id, mood_rating, mood_label, entry_date, created_at')
+    .select(`
+      id,
+      user_id,
+      mood_rating,
+      mood_label,
+      note,
+      entry_date,
+      created_at
+    `)
     .order('created_at', { ascending: false })
-    .limit(200);
+    .limit(300);
 
   if (error) throw error;
   return data || [];
@@ -247,114 +464,83 @@ function buildProfileMap(profiles) {
   return new Map(profiles.map(profile => [profile.id, profile]));
 }
 
-function buildTherapistMaps(therapists, profileMap) {
-  const therapistById = new Map();
-  const therapistNameById = new Map();
+function buildTherapistNameMap(therapists, profileMap) {
+  const therapistNameMap = new Map();
 
   for (const therapist of therapists) {
-    therapistById.set(therapist.id, therapist);
-
-    const therapistProfile = profileMap.get(therapist.profile_id);
-    const therapistName =
-      therapistProfile?.full_name ||
-      therapist.specialty ||
-      'Therapist';
-
-    therapistNameById.set(therapist.id, therapistName);
+    const profile = profileMap.get(therapist.user_id);
+    therapistNameMap.set(
+      therapist.id,
+      profile?.full_name ||
+        profile?.display_name ||
+        'Therapist'
+    );
   }
 
-  return { therapistById, therapistNameById };
+  return therapistNameMap;
 }
 
-function renderStats(profiles, therapists, appointments, alerts, notesToday) {
-  const clientProfiles = profiles.filter(p => p.role === 'client');
-  const now = new Date();
-
-  const upcomingAppointments = appointments.filter(appt => {
-    const apptDate = combineAppointmentDateTime(appt);
-    return apptDate && apptDate >= now;
-  });
-
-  const activeTherapists = therapists.filter(t => t.is_available !== false);
+function renderStats(clientProfiles, therapists, upcomingAppointments, alerts, notes) {
+  const activeTherapistRows = therapists.filter(t => t.status === 'active');
+  const inactiveTherapistRows = therapists.filter(t => t.status !== 'active');
+  const appointmentsToday = upcomingAppointments.filter(appt => isToday(appt.scheduled_at));
+  const notesToday = notes.filter(note => isToday(note.created_at));
+  const newClientsThisMonth = clientProfiles.filter(profile => isThisMonth(profile.created_at));
 
   els.totalUsers.textContent = String(clientProfiles.length);
+  els.totalUsersSub.textContent = `${newClientsThisMonth.length} new this month`;
+
   els.upcomingAppts.textContent = String(upcomingAppointments.length);
-  els.activeTherapists.textContent = String(activeTherapists.length);
+  els.upcomingApptsSub.textContent = `${appointmentsToday.length} scheduled today`;
+
+  els.activeTherapists.textContent = String(activeTherapistRows.length);
+  els.activeTherapistsSub.textContent = `${inactiveTherapistRows.length} inactive`;
+
   els.openAlerts.textContent = String(alerts.length);
-
-  const statSubs = document.querySelectorAll('.stat-sub');
-  if (statSubs[0]) statSubs[0].textContent = `${profiles.filter(p => isCreatedThisMonth(p.created_at)).length} new this month`;
-  if (statSubs[1]) statSubs[1].textContent = `${upcomingAppointments.filter(a => isToday(a.appointment_date)).length} scheduled today`;
-  if (statSubs[2]) statSubs[2].textContent = `${therapists.filter(t => t.is_available === false).length} marked unavailable`;
-  if (statSubs[3]) statSubs[3].textContent = notesToday > 0 ? `${notesToday} notes added today` : 'Needs follow-up review';
-
-  if (els.notifBadge) {
-    els.notifBadge.textContent = String(alerts.length);
-    els.notifBadge.style.display = alerts.length > 0 ? 'flex' : 'none';
-  }
+  els.openAlertsSub.textContent = `${notesToday.length} notes added today`;
 }
 
-function isCreatedThisMonth(dateValue) {
-  if (!dateValue) return false;
-  const date = new Date(dateValue);
-  const now = new Date();
-
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth()
-  );
-}
-
-function isToday(dateValue) {
-  if (!dateValue) return false;
-  const date = new Date(`${dateValue}T00:00:00`);
-  const now = new Date();
-
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  );
-}
-
-function renderUsersTable(allProfiles) {
+function renderUsersTable(profiles) {
   const query = (els.userSearch?.value || '').trim().toLowerCase();
-  const filter = els.userFilter?.value || 'All users';
+  const filter = els.userFilter?.value || 'all';
 
-  const clientProfiles = allProfiles.filter(profile => profile.role === 'client');
+  const clientProfiles = profiles.filter(profile => profile.role === 'client');
 
   const filtered = clientProfiles.filter(profile => {
-    const fullName = (profile.full_name || '').toLowerCase();
+    const name = (profile.full_name || profile.display_name || '').toLowerCase();
     const email = (profile.email || '').toLowerCase();
-    const matchesSearch = !query || fullName.includes(query) || email.includes(query);
+    const status = getUserHealthStatus(profile).label;
 
+    const matchesSearch = !query || name.includes(query) || email.includes(query);
     if (!matchesSearch) return false;
 
-    const status = getUserStatus(profile).label;
-
-    if (filter === 'Needs review') return status === 'Needs review';
-    if (filter === 'Recent signups') return isCreatedThisMonth(profile.created_at);
-    if (filter === 'High anxiety') return Number(profile.anxiety_level ?? 0) >= 8;
+    if (filter === 'needs_review') return status === 'Needs review';
+    if (filter === 'recent_signups') return isThisMonth(profile.created_at);
+    if (filter === 'high_anxiety') return Number(profile.anxiety_level ?? 0) >= 8;
 
     return true;
   });
 
   const rows = filtered.slice(0, 8).map(profile => {
-    const status = getUserStatus(profile);
+    const status = getUserHealthStatus(profile);
+
+    const energy = profile.energy_level ?? '—';
+    const anxiety = profile.anxiety_level ?? '—';
+    const sleep = profile.sleep_hours ?? '—';
 
     return `
       <tr>
         <td>
           <div class="user-meta">
-            <span class="user-name">${escapeHtml(profile.full_name || 'Unnamed User')}</span>
+            <span class="user-name">${escapeHtml(profile.full_name || profile.display_name || 'Unnamed User')}</span>
             <span class="user-email">${escapeHtml(profile.email || '')}</span>
           </div>
         </td>
         <td>${escapeHtml(profile.role || 'client')}</td>
-        <td>${escapeHtml(String(profile.energy_level ?? '—'))}/10</td>
-        <td>${escapeHtml(String(profile.anxiety_level ?? '—'))}/10</td>
-        <td>${escapeHtml(String(profile.sleep_hours ?? '—'))} hrs</td>
-        <td><span class="badge ${status.className}">${status.label}</span></td>
+        <td>${escapeHtml(String(energy))}${energy !== '—' ? '/10' : ''}</td>
+        <td>${escapeHtml(String(anxiety))}${anxiety !== '—' ? '/10' : ''}</td>
+        <td>${escapeHtml(String(sleep))}${sleep !== '—' ? ' hrs' : ''}</td>
+        <td><span class="badge ${status.className}">${escapeHtml(status.label)}</span></td>
       </tr>
     `;
   }).join('');
@@ -366,32 +552,27 @@ function renderUsersTable(allProfiles) {
   `;
 }
 
-function renderAppointmentsTable(appointments, profileMap, therapistNameById) {
+function renderAppointmentsTable(appointments, profileMap, therapistNameMap) {
   const now = new Date();
 
   const upcoming = appointments
-    .map(appt => ({ ...appt, dateObj: combineAppointmentDateTime(appt) }))
-    .filter(appt => appt.dateObj && appt.dateObj >= now)
-    .sort((a, b) => a.dateObj - b.dateObj)
+    .filter(appt => appt.scheduled_at && new Date(appt.scheduled_at) >= now)
+    .filter(appt => appt.status === 'scheduled')
+    .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
     .slice(0, 8);
 
   const rows = upcoming.map(appt => {
-    const userProfile = profileMap.get(appt.user_id);
-    const therapistName = therapistNameById.get(appt.therapist_id) || 'Unassigned';
-    const status = String(appt.status || 'pending').toLowerCase();
-
-    let badgeClass = 'badge-neutral';
-    if (status === 'confirmed') badgeClass = 'badge-success';
-    else if (status === 'rescheduled') badgeClass = 'badge-warn';
-    else if (status === 'cancelled' || status === 'canceled') badgeClass = 'badge-danger';
+    const client = profileMap.get(appt.user_id);
+    const therapistName = therapistNameMap.get(appt.therapist_id) || 'Therapist';
+    const badgeClass = getAppointmentStatusBadge(appt.status);
 
     return `
       <tr>
-        <td>${escapeHtml(userProfile?.full_name || 'Unknown User')}</td>
+        <td>${escapeHtml(client?.full_name || client?.display_name || 'Unknown User')}</td>
         <td>${escapeHtml(therapistName)}</td>
-        <td>${escapeHtml(formatDate(appt.dateObj, { month: 'short', day: 'numeric' }))}</td>
-        <td>${escapeHtml(appt.dateObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))}</td>
-        <td><span class="badge ${badgeClass}">${escapeHtml(appt.status || 'pending')}</span></td>
+        <td>${escapeHtml(formatDateTime(appt.scheduled_at))}</td>
+        <td>${escapeHtml(appt.format || '—')}</td>
+        <td><span class="badge ${badgeClass}">${escapeHtml(appt.status || '—')}</span></td>
       </tr>
     `;
   }).join('');
@@ -403,61 +584,18 @@ function renderAppointmentsTable(appointments, profileMap, therapistNameById) {
   `;
 }
 
-function buildAlerts(profiles, appointments, moodEntries) {
-  const now = new Date();
-  const moodByUser = new Map();
-
-  for (const entry of moodEntries) {
-    if (!moodByUser.has(entry.user_id)) {
-      moodByUser.set(entry.user_id, entry);
-    }
-  }
-
-  return profiles
-    .filter(profile => profile.role === 'client')
-    .map(profile => {
-      const status = getUserStatus(profile);
-      const recentMood = moodByUser.get(profile.id);
-
-      let score = 0;
-      if (status.label === 'Needs review') score += 3;
-      if (Number(profile.anxiety_level ?? 0) >= 8) score += 2;
-      if (Number(profile.sleep_hours ?? 0) <= 4) score += 2;
-      if (Number(profile.energy_level ?? 0) <= 4) score += 1;
-
-      const upcomingUserAppointments = appointments
-        .filter(a => a.user_id === profile.id)
-        .map(a => combineAppointmentDateTime(a))
-        .filter(Boolean)
-        .filter(date => date >= now);
-
-      if (upcomingUserAppointments.length === 0) score += 1;
-      if (recentMood && Number(recentMood.mood_rating ?? 10) <= 3) score += 2;
-
-      return {
-        profile,
-        score,
-        reason: getAlertReason(profile),
-        loggedAt: profile.logged_at || profile.created_at || null,
-      };
-    })
-    .filter(item => item.score >= 3)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5);
-}
-
 function renderAlerts(alerts) {
-  const items = alerts.map(({ profile, reason, loggedAt }) => `
+  const markup = alerts.map(alert => `
     <div class="alert-item">
       <div class="alert-head">
-        <div class="alert-title">${escapeHtml(profile.full_name || 'Unknown User')}</div>
-        <div class="small-time">${escapeHtml(formatDate(loggedAt, { month: 'short', day: 'numeric' }))}</div>
+        <div class="alert-title">${escapeHtml(alert.profile.full_name || alert.profile.display_name || 'Unknown User')}</div>
+        <div class="small-time">${escapeHtml(formatRelativeLabel(alert.time))}</div>
       </div>
-      <div class="alert-body">${escapeHtml(reason)}</div>
+      <div class="alert-body">${escapeHtml(alert.reason)}</div>
     </div>
   `).join('');
 
-  els.alertList.innerHTML = items || `
+  els.alertList.innerHTML = markup || `
     <div class="alert-item">
       <div class="alert-body">No open alerts right now.</div>
     </div>
@@ -465,25 +603,24 @@ function renderAlerts(alerts) {
 }
 
 function renderActivity(logs, profileMap) {
-  const items = logs.slice(0, 5).map(log => {
+  const markup = logs.slice(0, 5).map(log => {
     const staffProfile = profileMap.get(log.staff_id);
-    const staffName = staffProfile?.full_name || 'Staff member';
-    const title = log.action_type
-      ? log.action_type.replaceAll('_', ' ')
-      : 'Staff action';
+    const staffName = staffProfile?.full_name || staffProfile?.display_name || 'Staff member';
 
     return `
       <div class="activity-item">
         <div class="activity-head">
-          <div class="activity-title">${escapeHtml(title)}</div>
-          <div class="small-time">${escapeHtml(formatDateTime(log.created_at))}</div>
+          <div class="activity-title">${escapeHtml((log.action_type || 'staff_action').replaceAll('_', ' '))}</div>
+          <div class="small-time">${escapeHtml(formatRelativeLabel(log.created_at))}</div>
         </div>
-        <div class="activity-body">${escapeHtml(log.description || `${staffName} completed an action.`)}</div>
+        <div class="activity-body">
+          ${escapeHtml(log.description || `${staffName} completed a staff action.`)}
+        </div>
       </div>
     `;
   }).join('');
 
-  els.activityList.innerHTML = items || `
+  els.activityList.innerHTML = markup || `
     <div class="activity-item">
       <div class="activity-body">No recent staff activity found.</div>
     </div>
@@ -491,21 +628,22 @@ function renderActivity(logs, profileMap) {
 }
 
 function renderRecentNotes(notes, profileMap) {
-  const items = notes.slice(0, 5).map(note => {
-    const userProfile = profileMap.get(note.user_id);
+  const markup = notes.slice(0, 5).map(note => {
+    const clientProfile = profileMap.get(note.user_id);
+    const clientName = clientProfile?.full_name || clientProfile?.display_name || 'Unknown User';
 
     return `
       <div class="note-item">
         <div class="note-head">
-          <div class="note-title">${escapeHtml(userProfile?.full_name || 'Unknown User')}</div>
-          <div class="small-time">${escapeHtml(formatDateTime(note.created_at))}</div>
+          <div class="note-title">${escapeHtml(clientName)}</div>
+          <div class="small-time">${escapeHtml(formatRelativeLabel(note.created_at))}</div>
         </div>
         <div class="note-body">${escapeHtml(note.note || '')}</div>
       </div>
     `;
   }).join('');
 
-  els.recentNotesList.innerHTML = items || `
+  els.recentNotesList.innerHTML = markup || `
     <div class="note-item">
       <div class="note-body">No recent notes yet.</div>
     </div>
@@ -513,184 +651,195 @@ function renderRecentNotes(notes, profileMap) {
 }
 
 function renderQuickNoteUsers(profiles) {
-  const clientProfiles = profiles
+  const clients = profiles
     .filter(profile => profile.role === 'client')
-    .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+    .sort((a, b) => {
+      const aName = a.full_name || a.display_name || '';
+      const bName = b.full_name || b.display_name || '';
+      return aName.localeCompare(bName);
+    });
 
-  const options = [
-    `<option value="">Select user</option>`,
-    ...clientProfiles.map(profile => `
-      <option value="${escapeHtml(profile.id)}">${escapeHtml(profile.full_name || profile.email || 'Unnamed User')}</option>
-    `)
-  ];
-
-  els.noteUser.innerHTML = options.join('');
+  els.noteUser.innerHTML = `
+    <option value="">Select user</option>
+    ${clients.map(client => `
+      <option value="${escapeHtml(client.id)}">
+        ${escapeHtml(client.full_name || client.display_name || client.email || 'Unnamed User')}
+      </option>
+    `).join('')}
+  `;
 }
 
-function renderMiniStats(profiles, moodEntries, notes) {
+function renderMiniStats(clientProfiles, moodEntries, staffNotes) {
   const moodValues = moodEntries
     .map(entry => Number(entry.mood_rating))
-    .filter(value => Number.isFinite(value));
+    .filter(Number.isFinite);
 
   const avgMood = moodValues.length
     ? (moodValues.reduce((sum, value) => sum + value, 0) / moodValues.length).toFixed(1)
     : '—';
 
-  const clientProfiles = profiles.filter(profile => profile.role === 'client');
-
   const sleepValues = clientProfiles
     .map(profile => Number(profile.sleep_hours))
-    .filter(value => Number.isFinite(value));
+    .filter(Number.isFinite);
 
   const avgSleep = sleepValues.length
     ? (sleepValues.reduce((sum, value) => sum + value, 0) / sleepValues.length).toFixed(1)
     : '—';
 
-  const highAnxietyCount = clientProfiles.filter(
-    profile => Number(profile.anxiety_level ?? 0) >= 8
-  ).length;
+  const highAnxietyCount = clientProfiles.filter(profile => Number(profile.anxiety_level ?? 0) >= 8).length;
+  const notesTodayCount = staffNotes.filter(note => isToday(note.created_at)).length;
 
-  const notesToday = notes.filter(note => {
-    const created = new Date(note.created_at);
-    const now = new Date();
-
-    return (
-      created.getFullYear() === now.getFullYear() &&
-      created.getMonth() === now.getMonth() &&
-      created.getDate() === now.getDate()
-    );
-  }).length;
-
-  const statValues = document.querySelectorAll('.mini-stat-value');
-  if (statValues[0]) statValues[0].textContent = avgMood;
-  if (statValues[1]) statValues[1].textContent = avgSleep === '—' ? '—' : `${avgSleep}h`;
-  if (statValues[2]) statValues[2].textContent = String(highAnxietyCount);
-  if (statValues[3]) statValues[3].textContent = String(notesToday);
+  els.avgMood.textContent = avgMood;
+  els.avgSleep.textContent = avgSleep === '—' ? '—' : `${avgSleep}h`;
+  els.highAnxietyCount.textContent = String(highAnxietyCount);
+  els.notesToday.textContent = String(notesTodayCount);
 }
 
-async function handleQuickNoteSubmit(staffUserId) {
-  if (!els.quickNoteForm) return;
+async function saveQuickNote(staffId, userId, note) {
+  const { error } = await supabase
+    .from('staff_notes')
+    .insert({
+      staff_id: staffId,
+      user_id: userId,
+      note,
+    });
 
-  els.quickNoteForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-
-    const userId = els.noteUser.value;
-    const note = els.noteBody.value.trim();
-
-    if (!userId) {
-      alert('Please select a user first.');
-      return;
-    }
-
-    if (!note) {
-      alert('Please write a note first.');
-      return;
-    }
-
-    const submitButton = els.quickNoteForm.querySelector('button[type="submit"]');
-    const originalText = submitButton?.textContent || 'Save note';
-
-    try {
-      if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.textContent = 'Saving...';
-      }
-
-      const { error } = await supabase
-        .from('staff_notes')
-        .insert({
-          staff_id: staffUserId,
-          user_id: userId,
-          note,
-        });
-
-      if (error) throw error;
-
-      const { error: logError } = await supabase
-        .from('staff_actions_log')
-        .insert({
-          staff_id: staffUserId,
-          action_type: 'note_created',
-          target_id: userId,
-          description: 'Created a staff note from the staff dashboard.',
-        });
-
-      if (logError) {
-        console.warn('[staff-dashboard] log insert failed (non-fatal):', logError.message);
-      }
-
-      els.noteBody.value = '';
-      els.noteUser.value = '';
-
-      alert('Note saved successfully.');
-      window.location.reload();
-    } catch (err) {
-      console.error('[staff-dashboard] quick note failed:', err);
-      alert('Could not save the staff note.');
-    } finally {
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = originalText;
-      }
-    }
-  });
+  if (error) throw error;
 }
 
-try {
-  const { user, profile } = await requireStaffUser();
-  renderStaffIdentity(user, profile);
+async function logStaffAction(staffId, targetId, description) {
+  const { error } = await supabase
+    .from('staff_actions_log')
+    .insert({
+      staff_id: staffId,
+      action_type: 'note_created',
+      target_id: targetId,
+      description,
+    });
 
-  const [
-    profiles,
-    appointments,
-    therapists,
-    notes,
-    logs,
-    moodEntries,
-  ] = await Promise.all([
-    fetchProfiles(),
-    fetchAppointments(),
-    fetchTherapists(),
-    fetchStaffNotes(),
-    fetchStaffLogs(),
-    fetchMoodEntries(),
-  ]);
+  if (error) {
+    console.warn('[staff-dashboard] action log insert failed:', error.message);
+  }
+}
 
-  const profileMap = buildProfileMap(profiles);
-  const { therapistNameById } = buildTherapistMaps(therapists, profileMap);
-  const alerts = buildAlerts(profiles, appointments, moodEntries);
-
-  renderStats(
-    profiles,
-    therapists,
-    appointments,
-    alerts,
-    notes.filter(note => isToday(new Date(note.created_at).toISOString().slice(0, 10))).length
-  );
-
-  renderUsersTable(profiles);
-  renderAppointmentsTable(appointments, profileMap, therapistNameById);
-  renderAlerts(alerts);
-  renderActivity(logs, profileMap);
-  renderRecentNotes(notes, profileMap);
-  renderQuickNoteUsers(profiles);
-  renderMiniStats(profiles, moodEntries, notes);
-  await handleQuickNoteSubmit(user.id);
-
+function attachEvents() {
   if (els.userSearch) {
-    els.userSearch.addEventListener('input', () => renderUsersTable(profiles));
+    els.userSearch.addEventListener('input', () => renderUsersTable(state.profiles));
   }
 
   if (els.userFilter) {
-    els.userFilter.addEventListener('change', () => renderUsersTable(profiles));
+    els.userFilter.addEventListener('change', () => renderUsersTable(state.profiles));
   }
-} catch (err) {
-  console.error('Staff dashboard error:', err);
+
+  if (els.logoutBtn) {
+    els.logoutBtn.addEventListener('click', async () => {
+      await supabase.auth.signOut();
+      window.location.href = STAFF_LOGIN_PATH;
+    });
+  }
+
+  if (els.quickNoteForm) {
+    els.quickNoteForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      clearStatus();
+
+      const selectedUserId = els.noteUser.value;
+      const note = els.noteBody.value.trim();
+      const submitButton = els.quickNoteForm.querySelector('button[type="submit"]');
+
+      if (!selectedUserId) {
+        showStatus('Please select a user first.', 'error');
+        return;
+      }
+
+      if (!note) {
+        showStatus('Please write a note first.', 'error');
+        return;
+      }
+
+      const originalText = submitButton.textContent;
+      submitButton.disabled = true;
+      submitButton.textContent = 'Saving...';
+
+      try {
+        await saveQuickNote(state.currentUser.id, selectedUserId, note);
+        await logStaffAction(
+          state.currentUser.id,
+          selectedUserId,
+          'Created a staff note from the staff dashboard.'
+        );
+
+        els.noteUser.value = '';
+        els.noteBody.value = '';
+
+        state.staffNotes = await fetchStaffNotes();
+        renderRecentNotes(state.staffNotes, buildProfileMap(state.profiles));
+        renderMiniStats(
+          state.profiles.filter(profile => profile.role === 'client'),
+          state.moodEntries,
+          state.staffNotes
+        );
+
+        showStatus('Note saved successfully.', 'success');
+      } catch (error) {
+        console.error('[staff-dashboard] quick note error:', error);
+        showStatus(`Could not save note: ${error.message}`, 'error');
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = originalText;
+      }
+    });
+  }
 }
 
-if (els.logoutBtn) {
-  els.logoutBtn.addEventListener('click', async () => {
-    await supabase.auth.signOut();
-    window.location.href = '/staff';
-  });
+async function init() {
+  try {
+    clearStatus();
+
+    const { authUser, profile } = await requireStaffUser();
+    state.currentUser = authUser;
+    state.currentProfile = profile;
+
+    renderStaffIdentity(profile, authUser);
+
+    const [profiles, therapists, appointments, staffNotes, staffLogs, moodEntries] = await Promise.all([
+      fetchProfiles(),
+      fetchTherapists(),
+      fetchAppointments(),
+      fetchStaffNotes(),
+      fetchStaffLogs(),
+      fetchMoodEntries(),
+    ]);
+
+    state.profiles = profiles;
+    state.therapists = therapists;
+    state.appointments = appointments;
+    state.staffNotes = staffNotes;
+    state.staffLogs = staffLogs;
+    state.moodEntries = moodEntries;
+
+    const clientProfiles = profiles.filter(profile => profile.role === 'client');
+    const profileMap = buildProfileMap(profiles);
+    const therapistNameMap = buildTherapistNameMap(therapists, profileMap);
+    const upcomingAppointments = appointments
+      .filter(appt => appt.status === 'scheduled')
+      .filter(appt => appt.scheduled_at && new Date(appt.scheduled_at) >= new Date());
+
+    const alerts = getOpenAlertsData(clientProfiles, appointments, moodEntries);
+
+    renderStats(clientProfiles, therapists, upcomingAppointments, alerts, staffNotes);
+    renderUsersTable(profiles);
+    renderAppointmentsTable(appointments, profileMap, therapistNameMap);
+    renderAlerts(alerts);
+    renderActivity(staffLogs, profileMap);
+    renderRecentNotes(staffNotes, profileMap);
+    renderQuickNoteUsers(profiles);
+    renderMiniStats(clientProfiles, moodEntries, staffNotes);
+    attachEvents();
+  } catch (error) {
+    console.error('[staff-dashboard] init error:', error);
+    showStatus(`Dashboard failed to load: ${error.message}`, 'error');
+  }
 }
+
+await init();
