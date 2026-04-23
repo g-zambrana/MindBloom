@@ -95,7 +95,8 @@ function isDashboardUserRole(role) {
 }
 
 function isScheduledStatus(status) {
-  return normalizeValue(status) === 'scheduled';
+  const normalized = normalizeValue(status);
+  return normalized === 'scheduled' || normalized === 'pending';
 }
 
 function getInitials(name = '') {
@@ -512,19 +513,17 @@ function renderStats(profiles, therapists, appointments, moodEntries) {
     return isUserRole(profile.role) && isThisMonth(profile.created_at);
   });
 
-  const now = new Date();
   const upcomingAppointmentsThisMonth = appointments.filter(appt => {
-    if (!appt.scheduled_at) return false;
+  if (!appt.scheduled_at) return false;
 
-    const scheduledDate = new Date(appt.scheduled_at);
-    if (Number.isNaN(scheduledDate.getTime())) return false;
+  const scheduledDate = new Date(appt.scheduled_at);
+  if (Number.isNaN(scheduledDate.getTime())) return false;
 
-    return (
-      scheduledDate >= now &&
-      isThisMonth(appt.scheduled_at) &&
-      isScheduledStatus(appt.status)
-    );
-  });
+  return (
+    isThisMonth(appt.scheduled_at) &&
+    isScheduledStatus(appt.status)
+  );
+});
 
   const therapistIdsWorkingThisWeek = new Set(
     appointments
