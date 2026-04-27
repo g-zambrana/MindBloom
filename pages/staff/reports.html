@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/x-icon" href="/images/herb.svg" />
+  <title>Reports — MindBloom</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,400&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #F2EFE8;
+      --surface: #FFFFFF;
+      --sidebar: #244836;
+      --primary: #2F5D46;
+      --accent-soft: #E7F3EC;
+      --border: rgba(0,0,0,0.08);
+      --text: #2A2724;
+      --muted: #7A7870;
+      --shadow: 0 1px 4px rgba(0,0,0,0.07), 0 0 0 0.5px rgba(0,0,0,0.05);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    .sidebar {
+      width: 245px;
+      min-height: 100vh;
+      background: var(--sidebar);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sb-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 20px 18px;
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+      text-decoration: none;
+    }
+
+    .sb-mark {
+      width: 34px;
+      height: 34px;
+      background: rgba(255,255,255,0.14);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .sb-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .sb-sub {
+      font-size: 10px;
+      color: rgba(255,255,255,0.45);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      margin-top: 2px;
+    }
+
+    .sb-nav {
+      flex: 1;
+      padding: 10px;
+    }
+
+    .sb-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.30);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 12px 8px 5px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 10px;
+      border-radius: 8px;
+      color: rgba(255,255,255,0.66);
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 2px;
+      transition: background 0.12s, color 0.12s;
+      text-decoration: none;
+    }
+
+    .nav-item:hover {
+      background: rgba(255,255,255,0.09);
+      color: rgba(255,255,255,0.95);
+    }
+
+    .nav-item.active {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+    }
+
+    .sb-user {
+      padding: 14px 18px;
+      border-top: 1px solid rgba(255,255,255,0.10);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sb-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    .sb-uname {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .sb-uemail {
+      font-size: 11px;
+      color: rgba(255,255,255,0.45);
+      margin-top: 1px;
+      word-break: break-word;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.10);
+      margin: 8px 0;
+    }
+
+    .main {
+      flex: 1;
+      padding: 28px 36px 48px;
+      min-width: 0;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 22px;
+      gap: 18px;
+    }
+
+    .page-greet {
+      font-family: 'Playfair Display', serif;
+      font-size: 30px;
+      font-weight: 500;
+      line-height: 1.12;
+    }
+
+    .page-date {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 5px;
+    }
+
+    .btn-logout {
+      padding: 8px 14px;
+      background: rgba(0,0,0,0.06);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .status-message {
+      display: none;
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .status-message.show {
+      display: block;
+    }
+
+    .status-message.error {
+      background: #FDECEC;
+      color: #B94A48;
+      border: 1px solid rgba(185, 74, 72, 0.2);
+    }
+
+    .status-message.success {
+      background: #EAF6EE;
+      color: #2E7D4F;
+      border: 1px solid rgba(46, 125, 79, 0.2);
+    }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 26px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    .stat-value {
+      font-size: 30px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+    }
+
+    .stat-sub {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .panel {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .panel-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .panel-text {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    @media (max-width: 1180px) {
+      .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 900px) {
+      body {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        width: 100%;
+        min-height: auto;
+        height: auto;
+        position: relative;
+      }
+
+      .main {
+        padding: 22px 18px 34px;
+      }
+
+      .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .stats-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <nav class="sidebar">
+    <a class="sb-logo" href="/staff-dashboard">
+      <div class="sb-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" width="18">
+          <path d="M12 22V12M12 12C12 7 7 4 3 6M12 12C12 7 17 4 21 6"/>
+        </svg>
+      </div>
+      <div>
+        <div class="sb-name">MindBloom</div>
+        <div class="sb-sub">Staff Portal</div>
+      </div>
+    </a>
+
+    <div class="sb-nav">
+      <div class="sb-label">Overview</div>
+
+      <a class="nav-item" href="/staff-dashboard">Dashboard</a>
+      <a class="nav-item active" href="/staff/reports">Reports</a>
+
+      <hr>
+
+      <a class="nav-item" href="/staff/therapist">Therapists</a>
+
+      <hr>
+
+      <div class="sb-label" style="margin-top: 6px;">System</div>
+      <a class="nav-item" href="/staff/alerts">Alerts</a>
+    </div>
+
+    <div class="sb-user">
+      <div class="sb-avatar" id="avatar-initials">ST</div>
+      <div>
+        <div class="sb-uname" id="sb-username">Loading...</div>
+        <div class="sb-uemail" id="sb-useremail">Loading...</div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="main">
+    <div id="status-message" class="status-message"></div>
+
+    <div class="page-header">
+      <div>
+        <div class="page-greet">Reports</div>
+        <div class="page-date" id="today-date">Loading report date...</div>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn-logout" id="logoutBtn">Sign out</button>
+      </div>
+    </div>
+
+    <section class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">New Clients</div>
+        <div class="stat-value" id="total-users">—</div>
+        <div class="stat-sub" id="total-users-sub">Loading client data...</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Appointments</div>
+        <div class="stat-value" id="upcoming-appts">—</div>
+        <div class="stat-sub" id="upcoming-appts-sub">Loading appointment data...</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Active Therapists</div>
+        <div class="stat-value" id="active-therapists">—</div>
+        <div class="stat-sub" id="active-therapists-sub">Loading therapist data...</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Mood Activity</div>
+        <div class="stat-value" id="open-alerts">—</div>
+        <div class="stat-sub" id="open-alerts-sub">Loading mood report...</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">Report Summary</div>
+      <p class="panel-text">
+        This page displays live reporting information from the MindBloom database, including new client accounts,
+        scheduled appointments, therapist activity, mood tracker usage, journal activity, and staff notes.
+      </p>
+    </section>
+  </main>
+
+  <script type="module" src="/js/staff/reports.js"></script>
+</body>
+</html>
