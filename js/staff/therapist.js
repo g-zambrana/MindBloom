@@ -179,18 +179,46 @@ async function loadPatientIdsForTherapist() {
 async function loadPatients() {
   if (!patientIds.length) return [];
 
-  const { data, error } = await supabase
+  const { data: profiles, error: profileError } = await supabase
     .from("profiles")
-    .select("id, full_name, display_name, email, energy_level, anxiety_level, sleep_hours, logged_at")
+    .select("id, full_name, display_name, email")
     .in("id", patientIds)
     .order("full_name", { ascending: true });
 
-  if (error) {
-    console.error("Error loading patient profiles:", error);
+  if (profileError) {
+    console.error("Error loading patient profiles:", profileError);
     return [];
   }
 
-  return data || [];
+  const { data: moodEntries, error: moodError } = await supabase
+    .from("mood_entries")
+    .select("user_id, energy_level, anxiety_level, sleep_hours, entry_date, created_at")
+    .in("user_id", patientIds)
+    .order("created_at", { ascending: false });
+
+  if (moodError) {
+    console.error("Error loading patient mood entries:", moodError);
+  }
+
+  const latestMoodByUser = {};
+
+  for (const entry of moodEntries || []) {
+    if (!latestMoodByUser[entry.user_id]) {
+      latestMoodByUser[entry.user_id] = entry;
+    }
+  }
+
+  return (profiles || []).map((profile) => {
+    const latestMood = latestMoodByUser[profile.id];
+
+    return {
+      ...profile,
+      energy_level: latestMood?.energy_level ?? null,
+      anxiety_level: latestMood?.anxiety_level ?? null,
+      sleep_hours: latestMood?.sleep_hours ?? null,
+      logged_at: latestMood?.created_at ?? null,
+    };
+  });
 }
 
 async function renderUsersTable(filteredPatients = allPatients) {
