@@ -70,6 +70,9 @@
       padding: 14px 18px; border-top: 1px solid rgba(255,255,255,0.1);
       display: flex; align-items: center; gap: 10px; cursor: pointer;
     }
+    .sb-user:hover {
+      background: rgba(255,255,255,0.06);
+    }
     .sb-avatar {
       width: 32px; height: 32px; border-radius: 50%;
       background: rgba(255,255,255,0.15);
@@ -277,13 +280,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
       Resources
     </a>
-    <a class="nav-item" href="/profile">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      Profile Settings
-    </a>
+
   </div>
 
-  <div class="sb-user">
+  <div class="sb-user" onclick="window.location.href='/profile'" title="Profile Settings">
     <div class="sb-avatar" id="avatar-initials">?</div>
     <div>
       <div class="sb-uname"  id="sb-username">Loading…</div>
