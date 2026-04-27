@@ -22,6 +22,7 @@ const avatarInitials = document.querySelector("#avatar-initials");
 const todayDate = document.querySelector("#today-date");
 
 let allClients = [];
+let noteRecipients = [];
 
 initReports();
 
@@ -32,6 +33,7 @@ async function initReports() {
   await guardStaffAccess(staffProfile);
 
   allClients = await loadClients();
+  noteRecipients = await loadNoteRecipients();
 
   await Promise.all([
     renderUsersTable(),
@@ -292,12 +294,19 @@ async function renderAlerts() {
 }
 
 function populateNoteUserDropdown() {
+  if (!noteRecipients.length) {
+    noteUserSelect.innerHTML = `
+      <option value="">No staff/admin users found</option>
+    `;
+    return;
+  }
+
   noteUserSelect.innerHTML = `
-    <option value="">Select user</option>
-    ${allClients
-      .map((client) => {
-        const name = client.display_name || client.full_name || client.email;
-        return `<option value="${client.id}">${escapeHTML(name)}</option>`;
+    <option value="">Select staff/admin</option>
+    ${noteRecipients
+      .map((person) => {
+        const name = person.display_name || person.full_name || person.email;
+        return `<option value="${person.id}">${escapeHTML(name)} (${escapeHTML(person.role)})</option>`;
       })
       .join("")}
   `;
@@ -345,7 +354,8 @@ function setupQuickNoteForm() {
 async function renderRecentNotes() {
   const { data, error } = await supabase
     .from("staff_notes")
-    .select("id, user_id, note, created_at")
+    .select("id, staff_id, user_id, note, created_at")
+    .or(`staff_id.eq.${user.id},user_id.eq.${user.id}`)
     .order("created_at", { ascending: false })
     .limit(5);
 
@@ -360,16 +370,41 @@ async function renderRecentNotes() {
     return;
   }
 
+  const profileIds = [
+    ...new Set(data.flatMap((note) => [note.staff_id, note.user_id]))
+  ];
+
+  const { data: profiles, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, full_name, display_name, email, role")
+    .in("id", profileIds);
+
+  if (profileError) {
+    console.error("Error loading note profiles:", profileError);
+  }
+
+  const profileMap = {};
+  (profiles || []).forEach((profile) => {
+    profileMap[profile.id] = profile;
+  });
+
   recentNotesList.innerHTML = data
     .map((note) => {
-      const client = allClients.find((c) => c.id === note.user_id);
-      const name =
-        client?.display_name || client?.full_name || client?.email || "Unknown user";
+      const sender = profileMap[note.staff_id];
+      const receiver = profileMap[note.user_id];
+
+      const senderName =
+        sender?.display_name || sender?.full_name || sender?.email || "Unknown sender";
+
+      const receiverName =
+        receiver?.display_name || receiver?.full_name || receiver?.email || "Unknown recipient";
 
       return `
         <div class="note-item">
           <div class="note-head">
-            <div class="note-title">${escapeHTML(name)}</div>
+            <div class="note-title">
+              ${escapeHTML(senderName)} → ${escapeHTML(receiverName)}
+            </div>
             <div class="small-time">${timeAgo(note.created_at)}</div>
           </div>
           <div class="note-body">${escapeHTML(note.note)}</div>
@@ -377,6 +412,22 @@ async function renderRecentNotes() {
       `;
     })
     .join("");
+}
+
+async function loadNoteRecipients() {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, display_name, email, role")
+    .in("role", ["staff", "admin"])
+    .neq("id", user.id)
+    .order("full_name", { ascending: true });
+
+  if (error) {
+    console.error("Error loading note recipients:", error);
+    return [];
+  }
+
+  return data || [];
 }
 
 function setupLogout() {
@@ -427,6 +478,8 @@ function timeAgo(dateValue) {
   const days = Math.floor(hours / 24);
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
+
+
 
 function formatActionType(actionType) {
   if (!actionType) return "Staff activity";
