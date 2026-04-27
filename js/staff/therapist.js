@@ -5,6 +5,7 @@ import { supabase, requireAuth } from "../supabase.js";
 const user = await requireAuth();
 if (!user) throw new Error("Not authenticated");
 
+const main = document.querySelector(".main");
 const usersTableBody = document.querySelector("#users-table-body");
 const appointmentsTableBody = document.querySelector("#appointments-table-body");
 const alertList = document.querySelector("#alert-list");
@@ -66,6 +67,8 @@ async function initTherapistPage() {
 }
 
 function setTodayDate() {
+  if (!todayDate) return;
+
   todayDate.textContent = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
@@ -88,19 +91,50 @@ async function loadCurrentProfile() {
 
   const name = getProfileName(data, "Therapist");
 
-  sbUsername.textContent = name;
-  sbUserEmail.textContent = data.email || user.email;
-  avatarInitials.textContent = getInitials(name);
+  if (sbUsername) sbUsername.textContent = name;
+  if (sbUserEmail) sbUserEmail.textContent = data.email || user.email;
+  if (avatarInitials) avatarInitials.textContent = getInitials(name);
 
   return data;
 }
 
 async function guardTherapistAccess(profile) {
-  const allowedRoles = ["therapist", "admin", "staff"];
+  if (!profile || profile.role !== "therapist") {
+    if (main) {
+      main.innerHTML = `
+        <div class="page-header">
+          <div>
+            <div class="page-greet">Access Restricted</div>
+            <div class="page-date">Only therapists can view this page.</div>
+          </div>
 
-  if (!profile || !allowedRoles.includes(profile.role)) {
-    alert("You do not have permission to view this page.");
-    window.location.href = "/home";
+          <div class="header-actions">
+            <button class="btn-logout" id="restrictedLogoutBtn">Sign out</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Therapist Access Required</div>
+          </div>
+
+          <p style="font-size: 14px; color: var(--muted); line-height: 1.6;">
+            Only therapists can view this page. Please sign in with a therapist account to access patient care information.
+          </p>
+        </div>
+      `;
+
+      const restrictedLogoutBtn = document.querySelector("#restrictedLogoutBtn");
+
+      if (restrictedLogoutBtn) {
+        restrictedLogoutBtn.addEventListener("click", async () => {
+          await supabase.auth.signOut();
+          window.location.href = "/login";
+        });
+      }
+    }
+
+    throw new Error("Only therapists can view this page.");
   }
 }
 
@@ -124,7 +158,7 @@ async function loadPatientIdsForTherapist() {
     .from("appointments")
     .select("user_id")
     .eq("therapist_id", therapistId)
-    .in("status", ["scheduled", "completed", "cancelled", "no_show"])
+    .in("status", ["scheduled", "completed", "cancelled", "no_show", "pending"])
     .not("user_id", "is", null);
 
   if (error) {
@@ -368,6 +402,11 @@ function setupQuickNoteForm() {
       return;
     }
 
+    if (!patientIds.includes(selectedUserId)) {
+      alert("You can only add notes for your own patients.");
+      return;
+    }
+
     const latestAppointment = await getLatestAppointmentForPatient(selectedUserId);
 
     const { error } = await supabase.from("staff_notes").insert({
@@ -512,6 +551,8 @@ function setupSearchAndFilter() {
 }
 
 function setupLogout() {
+  if (!logoutBtn) return;
+
   logoutBtn.addEventListener("click", async () => {
     await supabase.auth.signOut();
     window.location.href = "/login";
