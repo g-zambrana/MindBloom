@@ -5,7 +5,7 @@ import { supabase, requireAuth } from '../supabase.js';
 
 const PROFILES_TABLE = 'profiles';
 const STAFF_LOGIN_PATH = '/staff/login';
-const ALLOWED_ROLES = ['staff', 'admin'];
+const ALLOWED_ROLES = ['staff', 'admin', 'therapist'];
 
 const state = {
   currentUser: null,
