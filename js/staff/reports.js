@@ -26,6 +26,29 @@ let noteRecipients = [];
 
 initReports();
 
+
+function setupLogout() {
+  if (!logoutBtn) {
+    console.error("Logout button not found.");
+    return;
+  }
+
+  logoutBtn.addEventListener("click", async () => {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("Error signing out:", error);
+      alert("Could not sign out. Please try again.");
+      return;
+    }
+
+    localStorage.clear();
+    sessionStorage.clear();
+
+    window.location.href = "/staff/login";
+  });
+}
+
 async function initReports() {
   setTodayDate();
 
@@ -38,8 +61,6 @@ async function initReports() {
   await Promise.all([
     renderUsersTable(),
     renderAppointments(),
-    renderActivity(),
-    renderAlerts(),
     renderRecentNotes(),
   ]);
 
@@ -77,6 +98,8 @@ async function loadStaffProfile() {
 
   return data;
 }
+
+
 
 async function guardStaffAccess(profile) {
   const allowedRoles = ["staff", "admin", "therapist"];
@@ -430,24 +453,6 @@ async function loadNoteRecipients() {
   return data || [];
 }
 
-function setupLogout() {
-  if (!logoutBtn) {
-    console.error("Logout button not found.");
-    return;
-  }
-
-  logoutBtn.addEventListener("click", async () => {
-    const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      console.error("Error signing out:", error);
-      alert("Could not sign out. Please try again.");
-      return;
-    }
-
-    window.location.href = STAFF_LOGIN_PATH;
-  });
-}
 
 function getInitials(name) {
   return name
