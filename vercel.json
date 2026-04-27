@@ -26,6 +26,7 @@
     { "source": "/resources",       "destination": "/pages/resources"       },
     { "source": "/profile",         "destination": "/pages/profile"         },
     { "source": "/staff/login",      "destination": "/pages/staff/login"    },
-    { "source": "/staff/staff-dashboard",      "destination": "/pages/staff/staff-dashboard"    }
+    { "source": "/staff/staff-dashboard",      "destination": "/pages/staff/staff-dashboard"    },
+    { "source": "/staff/reports",      "destination": "/pages/staff/reports"    }
   ]
 }
