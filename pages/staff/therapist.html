@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/x-icon" href="/images/herb.svg" />
-  <title>Staff Dashboard — MindBloom</title>
+  <title>Therapist Portal — MindBloom</title>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,400&display=swap" rel="stylesheet">
 
   <style>
@@ -681,6 +681,7 @@
     }
   </style>
 </head>
+
 <body>
   <nav class="sidebar">
     <a class="sb-logo" href="/staff-dashboard">
@@ -699,11 +700,11 @@
       <div class="sb-label">Overview</div>
 
       <a class="nav-item" href="/pages/staff/staff-dashboard.html">Dashboard</a>
-      <a class="nav-item active" href="/pages/staff/reports">Reports</a>
+      <a class="nav-item" href="/pages/staff/reports">Reports</a>
 
       <hr>
 
-      <a class="nav-item" href="/pages/staff/therapist">Therapists</a>
+      <a class="nav-item active" href="/pages/staff/therapist">Therapists</a>
 
       <hr>
 
@@ -712,7 +713,7 @@
     </div>
 
     <div class="sb-user">
-      <div class="sb-avatar" id="avatar-initials">ST</div>
+      <div class="sb-avatar" id="avatar-initials">TH</div>
       <div>
         <div class="sb-uname" id="sb-username">Loading...</div>
         <div class="sb-uemail" id="sb-useremail">Loading...</div>
@@ -723,8 +724,8 @@
   <main class="main">
     <div class="page-header">
       <div>
-        <div class="page-greet">Reports</div>
-        <div class="page-date" id="today-date">Operations overview for today</div>
+        <div class="page-greet">Therapist Overview</div>
+        <div class="page-date" id="today-date">Patient care overview for today</div>
       </div>
 
       <div class="header-actions">
@@ -741,26 +742,28 @@
 
           <div class="search-row">
             <input class="search-input" type="text" placeholder="Search by name or email" id="user-search" />
+
             <select class="filter-select" id="user-filter">
-              <option>All users</option>
-              <option>Role</option>
-              <option>Recently Created</option>
-              <option>A-Z</option>
+              <option value="all">All users</option>
+              <option value="high-anxiety">High anxiety</option>
+              <option value="low-energy">Low energy</option>
+              <option value="low-sleep">Low sleep</option>
             </select>
           </div>
 
           <table class="simple-table">
             <thead>
               <tr>
-                <th>User</th>
+                <th>Full Name</th>
                 <th>Email</th>
-                <th>Account Created</th>
-                <th>Last Mood-Entry Date</th>
+                <th>Energy</th>
+                <th>Anxiety</th>
+                <th>Sleep</th>
               </tr>
             </thead>
             <tbody id="users-table-body">
               <tr>
-                <td colspan="4">Loading users...</td>
+                <td colspan="5">Loading patients...</td>
               </tr>
             </tbody>
           </table>
@@ -789,12 +792,12 @@
 
         <div class="panel">
           <div class="panel-header">
-            <div class="panel-title">Recent staff activity</div>
+            <div class="panel-title">Previous notes</div>
           </div>
 
-          <div class="activity-list" id="activity-list">
-            <div class="activity-item">
-              <div class="activity-body">Loading activity...</div>
+          <div class="note-list" id="previous-notes-list">
+            <div class="note-item">
+              <div class="note-body">Loading previous notes...</div>
             </div>
           </div>
         </div>
@@ -823,19 +826,35 @@
               <option value="">Loading users...</option>
             </select>
 
-            <textarea class="note-textarea" id="note-body" placeholder="Write an internal staff note..."></textarea>
+            <textarea class="note-textarea" id="note-body" placeholder="Write an internal therapist note..."></textarea>
             <button class="btn-primary" type="submit">Save note</button>
           </form>
         </div>
 
         <div class="panel">
           <div class="panel-header">
-            <div class="panel-title">Recent notes</div>
+            <div class="panel-title">Care Snapshot</div>
           </div>
 
-          <div class="note-list" id="recent-notes-list">
-            <div class="note-item">
-              <div class="note-body">Loading notes...</div>
+          <div class="mini-stats">
+            <div class="mini-stat">
+              <div class="mini-stat-label">Avg Mood</div>
+              <div class="mini-stat-value" id="avg-mood">--</div>
+            </div>
+
+            <div class="mini-stat">
+              <div class="mini-stat-label">Avg Sleep</div>
+              <div class="mini-stat-value" id="avg-sleep">--</div>
+            </div>
+
+            <div class="mini-stat">
+              <div class="mini-stat-label">High Anxiety</div>
+              <div class="mini-stat-value" id="high-anxiety-count">--</div>
+            </div>
+
+            <div class="mini-stat">
+              <div class="mini-stat-label">Notes Today</div>
+              <div class="mini-stat-value" id="notes-today-count">--</div>
             </div>
           </div>
         </div>
@@ -843,6 +862,6 @@
     </section>
   </main>
 
-  <script type="module" src="/js/staff/reports.js"></script>
+  <script type="module" src="/js/staff/therapist.js"></script>
 </body>
 </html>
