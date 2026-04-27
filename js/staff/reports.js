@@ -89,11 +89,11 @@ async function loadClients() {
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name, display_name, email, created_at, role")
-    .eq("role", "user")
+    .in("role", ["staff", "admin"])
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("Error loading clients:", error);
+    console.error("Error loading staff/admin users:", error);
     return [];
   }
 
@@ -293,11 +293,11 @@ async function renderAlerts() {
 
 function populateNoteUserDropdown() {
   noteUserSelect.innerHTML = `
-    <option value="">Select user</option>
+    <option value="">Select staff/admin</option>
     ${allClients
-      .map((client) => {
-        const name = client.display_name || client.full_name || client.email;
-        return `<option value="${client.id}">${escapeHTML(name)}</option>`;
+      .map((person) => {
+        const name = person.display_name || person.full_name || person.email;
+        return `<option value="${person.id}">${escapeHTML(name)} (${escapeHTML(person.role)})</option>`;
       })
       .join("")}
   `;
