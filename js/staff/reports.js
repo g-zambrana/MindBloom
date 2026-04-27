@@ -443,7 +443,7 @@ async function loadNoteRecipients() {
     .select("id, full_name, display_name, email, role")
     .in("role", ["staff", "admin"])
     .neq("id", user.id)
-    .order("full_name", { ascending: true });
+    .order("role", { ascending: true });
 
   if (error) {
     console.error("Error loading note recipients:", error);
@@ -451,6 +451,39 @@ async function loadNoteRecipients() {
   }
 
   return data || [];
+}
+
+function populateNoteUserDropdown() {
+  if (!noteUserSelect) {
+    console.error("Quick note dropdown #note-user was not found.");
+    return;
+  }
+
+  if (!noteRecipients.length) {
+    noteUserSelect.innerHTML = `
+      <option value="">No staff or admin users found</option>
+    `;
+    return;
+  }
+
+  noteUserSelect.innerHTML = `
+    <option value="">Select staff/admin</option>
+    ${noteRecipients
+      .map((person) => {
+        const name =
+          person.display_name ||
+          person.full_name ||
+          person.email ||
+          "Unnamed user";
+
+        return `
+          <option value="${person.id}">
+            ${escapeHTML(name)} - ${escapeHTML(person.role)}
+          </option>
+        `;
+      })
+      .join("")}
+  `;
 }
 
 
