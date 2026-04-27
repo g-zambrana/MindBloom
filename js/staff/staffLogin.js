@@ -102,12 +102,18 @@ form.addEventListener('submit', async (event) => {
     console.log('Staff portal login role:', role);
 
     if (!isAllowedStaffPortalRole(role)) {
-      await supabase.auth.signOut();
-      setMessage('Access denied. Only staff, admin, or therapist accounts can sign in here.', '#c0392b');
-      return;
-    }
+  await supabase.auth.signOut();
+  setMessage('Access denied. Only staff, admin, or therapist accounts can sign in here.', '#c0392b');
+  return;
+}
 
-    window.location.href = STAFF_DASHBOARD_PATH;
+// 🔥 ROLE-BASED REDIRECT
+if (role === 'therapist') {
+  window.location.href = '/staff/therapist';
+  return;
+}
+
+  window.location.href = STAFF_DASHBOARD_PATH;
   } catch (err) {
     console.error('Staff login failed:', err);
     setMessage('Something went wrong. Please try again.', '#c0392b');
