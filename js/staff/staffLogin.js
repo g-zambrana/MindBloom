@@ -57,9 +57,15 @@ function isAllowedStaffPortalRole(role) {
     const role = await getUserRole(session.user.id);
 
     if (isAllowedStaffPortalRole(role)) {
-      window.location.replace(STAFF_DASHBOARD_PATH);
-      return;
-    }
+
+  if (role === 'therapist') {
+    window.location.replace('/staff/therapist');
+    return;
+  }
+
+  window.location.replace(STAFF_DASHBOARD_PATH);
+  return;
+}
 
     await supabase.auth.signOut();
     setMessage('This portal is only for staff, admin, or therapist accounts.', '#c0392b');
