@@ -3,6 +3,7 @@
 import { supabase, requireAuth } from "../supabase.js";
 
 const user = await requireAuth();
+const STAFF_LOGIN_PATH = '/staff/login';
 if (!user) throw new Error("Not authenticated");
 
 const usersTableBody = document.querySelector("#users-table-body");
@@ -13,7 +14,7 @@ const noteUserSelect = document.querySelector("#note-user");
 const noteForm = document.querySelector("#quick-note-form");
 const noteBody = document.querySelector("#note-body");
 const recentNotesList = document.querySelector("#recent-notes-list");
-const logoutBtn = document.querySelector("#logoutBtn");
+const logoutBtn = document.getElementById("logoutBtn");
 
 const sbUsername = document.querySelector("#sb-username");
 const sbUserEmail = document.querySelector("#sb-useremail");
@@ -381,7 +382,7 @@ async function renderRecentNotes() {
 function setupLogout() {
   logoutBtn.addEventListener("click", async () => {
     await supabase.auth.signOut();
-    window.location.href = "/staff/login";
+    window.location.href = STAFF_LOGIN_PATH;
   });
 }
 
