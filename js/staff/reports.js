@@ -381,7 +381,7 @@ async function renderRecentNotes() {
 function setupLogout() {
   logoutBtn.addEventListener("click", async () => {
     await supabase.auth.signOut();
-    window.location.href = "/login";
+    window.location.href = "/staff/login";
   });
 }
 
